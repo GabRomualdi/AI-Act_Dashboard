@@ -615,8 +615,13 @@ async function caricaAudit(){
 }
 function mostraIntegrita(v,simulata){
   const el=$("#integ"); el.className="integ"+(v.integra?"":" bad");
-  el.innerHTML=`<span class="dot"></span><span>${v.integra?"Catena di hash verificata · "+v.n_record+" record integri":(simulata?"SIMULAZIONE – ":"")+"CATENA COMPROMESSA al record #"+v.record_non_valido+": "+esc(v.motivo)}</span>`;
+  const testo=v.integra?"Catena di hash verificata · "+v.n_record+" record integri"
+    :simulata?"SIMULAZIONE – manomissione rilevata al record #"+v.record_non_valido+": "+v.motivo+". Il log reale NON è stato toccato (torna allo stato reale tra pochi secondi)."
+    :"CATENA COMPROMESSA al record #"+v.record_non_valido+": "+v.motivo;
+  el.innerHTML=`<span class="dot"></span><span>${esc(testo)}</span>`;
 }
+let timerInteg=null;
+async function ripristinaIntegrita(){try{mostraIntegrita(await api("/api/audit/verifica"))}catch(e){}}
 
 /* ===================== MONITORAGGIO ===================== */
 async function caricaKPI(){
@@ -732,7 +737,7 @@ $("#btnPromote").addEventListener("click",()=>{const a=$("#promArea").value, man
 $("#btnCerca").addEventListener("click",caricaAudit);
 $("#fAudit").addEventListener("keydown",e=>{if(e.key==="Enter")caricaAudit()});
 $("#btnVerify").addEventListener("click",async()=>{try{mostraIntegrita(await api("/api/audit/verifica"))}catch(e){toast(e.message,true)}});
-$("#btnTamper").addEventListener("click",async()=>{try{const r=await api("/api/audit/simula-manomissione",{body:{}});mostraIntegrita(r.esito_sulla_copia,true);
+$("#btnTamper").addEventListener("click",async()=>{try{const r=await api("/api/audit/simula-manomissione",{body:{}});mostraIntegrita(r.esito_sulla_copia,true);clearTimeout(timerInteg);timerInteg=setTimeout(ripristinaIntegrita,10000);
   toast(`Record #${r.record_alterato} alterato (${r.campo}) su una copia: la verifica lo rileva. Il log reale non è stato toccato.`)}catch(e){toast(e.message,true)}});
 $("#btnRicostruisci").addEventListener("click",async()=>{const a=$("#fAsset").value.trim();if(!a)return;
   try{const r=await api("/api/audit/ricostruisci/"+encodeURIComponent(a));
