@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EnerGuard · Dashboard di Supervisione Umana (demo funzionante)</title>
+<style>
+:root{
+  --bg:#0E1C24; --panel:#152730; --panel2:#1B303B; --line:#2E4B57;
+  --txt:#E6EEF2; --mut:#A9BCC5;
+  --hotl:#3CCDB9; --hitl:#F6B24B; --hic:#F26B58;
+  --hotl-d:#123832; --hitl-d:#3B2C12; --hic-d:#3A1712;
+  --focus:#8ED2FF; --ok:#6FD98F;
+  --fs:15px;
+}
+html[data-contrast="high"]{ --bg:#000; --panel:#0A0A0A; --panel2:#141414; --line:#7A8A92; --txt:#fff; --mut:#D8E2E6; --hitl:#FFC46B; --hic:#FF8A78; --hotl:#5FE8D4; }
+html[data-size="large"]{ --fs:18px; }
+*{box-sizing:border-box;margin:0;padding:0}
+html{font-size:var(--fs)}
+body{background:var(--bg);color:var(--txt);font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;line-height:1.45}
+.mono{font-family:ui-monospace,Consolas,"Courier New",monospace}
+h1,h2,h3{letter-spacing:.02em}
+a{color:var(--focus)}
+button,select,input,textarea{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+.skip{position:absolute;left:-999px;top:8px;background:var(--focus);color:#000;padding:8px 12px;border-radius:4px;z-index:100}
+.skip:focus{left:8px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+/* ---------- top bar ---------- */
+.topbar{display:flex;flex-wrap:wrap;align-items:stretch;border-bottom:1px solid var(--line);background:var(--panel)}
+.brand{padding:12px 20px;border-right:1px solid var(--line);min-width:230px}
+.brand h1{font-size:1.35rem;font-weight:800}
+.brand h1 span{color:var(--hotl)}
+.brand small{color:var(--mut);font-size:.72rem;text-transform:uppercase;letter-spacing:.1em;display:block}
+.kpis{display:flex;flex-wrap:wrap;gap:6px 22px;align-items:center;padding:8px 20px;flex:1}
+.kpi{display:flex;flex-direction:column;min-width:96px}
+.kpi b{font-family:ui-monospace,Consolas,monospace;font-size:1.15rem}
+.kpi span{font-size:.68rem;color:var(--mut);text-transform:uppercase;letter-spacing:.08em}
+.kpi b.warn{color:var(--hitl)} .kpi b.okc{color:var(--hotl)} .kpi b.bad{color:var(--hic)}
+.tools{display:flex;gap:6px;align-items:center;padding:8px 14px;border-left:1px solid var(--line)}
+.tools button{background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:8px 10px;cursor:pointer;min-height:44px}
+.tools button[aria-pressed="true"]{border-color:var(--focus);background:#1E3A4A}
+
+/* emergency stop */
+.estop{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:10px 16px;
+  background:repeating-linear-gradient(-45deg,#2A1214 0 12px,#1C0C0D 12px 24px);border-left:3px solid var(--hic)}
+html[data-contrast="high"] .estop{background:#1a0000}
+.estop label{font-size:.72rem;color:#F5B3A8;text-transform:uppercase;letter-spacing:.06em}
+.estop select,.estop input{background:#1A0C0D;color:var(--txt);border:1px solid var(--hic);padding:9px;border-radius:6px;min-height:44px}
+.estop input{min-width:220px}
+.estop-btn{background:var(--hic);color:#140505;border:none;cursor:pointer;font-weight:800;font-size:1rem;letter-spacing:.06em;
+  padding:11px 18px;border-radius:6px;text-transform:uppercase;min-height:44px;box-shadow:0 0 0 3px var(--bg),0 0 0 5px var(--hic)}
+.estop-btn:hover{filter:brightness(1.1)}
+.stops{display:flex;flex-wrap:wrap;gap:6px;margin-left:auto}
+.stops .chip{background:#3A1712;border:1px solid var(--hic);color:#FFD2CB;border-radius:999px;padding:6px 10px;font-size:.8rem;display:flex;gap:8px;align-items:center}
+.stops .chip button{background:none;border:1px solid #FFD2CB;color:#FFD2CB;border-radius:999px;padding:2px 8px;cursor:pointer;min-height:28px}
+
+/* tabs */
+.tabs{display:flex;gap:4px;padding:10px 16px 0;border-bottom:1px solid var(--line);background:var(--panel);flex-wrap:wrap}
+.tabs [role=tab]{background:transparent;border:1px solid transparent;border-bottom:none;color:var(--mut);padding:10px 16px;border-radius:8px 8px 0 0;cursor:pointer;min-height:44px}
+.tabs [role=tab][aria-selected=true]{background:var(--bg);border-color:var(--line);color:var(--txt);font-weight:700}
+.tabs [role=tab] .n{background:var(--hitl);color:#1B1300;border-radius:999px;padding:1px 8px;font-size:.75rem;margin-left:6px;font-weight:800}
+[role=tabpanel]{padding:16px;max-width:1500px;margin:0 auto}
+[role=tabpanel][hidden]{display:none}
+
+.grid2{display:grid;grid-template-columns:minmax(420px,1.1fr) 1fr;gap:16px}
+@media(max-width:1000px){.grid2{grid-template-columns:1fr}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.phead{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.phead h2{font-size:1rem;font-weight:700}
+.phead .art{font-size:.72rem;color:var(--mut);letter-spacing:.06em;font-family:ui-monospace,monospace}
+.pbody{padding:14px 16px}
+.filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.filters select,.filters input{background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:8px;min-height:40px}
+.filters label{font-size:.8rem;color:var(--mut)}
+
+/* cards */
+.card{border:1px solid var(--line);border-left:5px solid var(--hitl);border-radius:6px;background:var(--panel2);margin-bottom:12px;padding:12px 14px}
+.card.hic{border-left-color:var(--hic)}
+.chead{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.cid{font-family:ui-monospace,monospace;font-weight:700;font-size:1rem}
+.tag{font-size:.75rem;font-weight:800;letter-spacing:.06em;padding:3px 9px;border-radius:4px;text-transform:uppercase}
+.tag.hitl{background:var(--hitl-d);color:var(--hitl);border:1px solid var(--hitl)}
+.tag.hic{background:var(--hic-d);color:var(--hic);border:1px solid var(--hic)}
+.tag.hotl{background:var(--hotl-d);color:var(--hotl);border:1px solid var(--hotl)}
+.meta{color:var(--mut);font-size:.85rem;margin-top:3px}
+.nums{display:flex;gap:18px;margin:10px 0;font-family:ui-monospace,monospace;font-size:.85rem;flex-wrap:wrap}
+.nums b{font-size:1.05rem}
+.exp{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:10px 12px;font-size:.92rem;margin:8px 0}
+.exp .unc{color:var(--hitl);display:block;margin-top:6px}
+.acts{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:start;margin-top:10px}
+@media(max-width:700px){.acts{grid-template-columns:1fr}}
+.mot textarea{width:100%;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:9px;resize:vertical;min-height:58px}
+.mot small{color:var(--mut);font-size:.78rem;display:block;margin-top:4px}
+.mot small.ko{color:var(--hic)}
+.btns{display:flex;flex-direction:column;gap:6px;min-width:190px}
+.btns button,.btn{font-weight:700;font-size:.9rem;padding:9px 12px;border-radius:6px;cursor:pointer;border:1px solid var(--line);background:#22333C;color:var(--txt);min-height:44px;text-align:left}
+.btns .ok{background:#14332F;border-color:var(--hotl);color:var(--hotl)}
+.btns .no{background:var(--hic-d);border-color:var(--hic);color:#FFB3A8}
+.btns button:disabled{opacity:.45;cursor:not-allowed}
+.modsel{display:none;gap:6px;align-items:center;margin-top:6px}
+.modsel.show{display:flex}
+.modsel select{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px;min-height:40px}
+.empty{color:var(--mut);padding:20px;text-align:center;border:1px dashed var(--line);border-radius:6px}
+
+/* table */
+table{width:100%;border-collapse:collapse;font-size:.88rem}
+th{font-size:.75rem;letter-spacing:.06em;color:var(--mut);text-align:left;padding:8px;border-bottom:1px solid var(--line);text-transform:uppercase}
+td{padding:9px 8px;border-bottom:1px solid #223A45;vertical-align:top}
+tr.alert td{background:#2A1A10}
+.pill{padding:2px 8px;border-radius:4px;font-size:.78rem;font-weight:700;white-space:nowrap}
+.pill.bad{background:var(--hic-d);color:#FFB3A8;border:1px solid var(--hic)}
+.pill.warn{background:var(--hitl-d);color:var(--hitl);border:1px solid var(--hitl)}
+.pill.ok{background:#14332F;color:var(--hotl);border:1px solid var(--hotl)}
+.bignote{border:1px solid var(--hitl);background:var(--hitl-d);border-radius:6px;padding:12px 14px;font-size:.92rem;margin-top:12px;color:#FBE5C0}
+.bignote b{color:var(--hitl)}
+.legend{display:flex;gap:16px;margin-top:8px;font-size:.8rem;flex-wrap:wrap}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.note{font-size:.82rem;color:var(--mut);margin-top:8px}
+.integ{display:flex;align-items:center;gap:8px;font-size:.9rem;color:var(--hotl);margin-bottom:10px}
+.integ.bad{color:var(--hic)}
+.integ .dot{width:10px;height:10px;border-radius:50%;background:currentColor}
+.toast{position:fixed;right:16px;bottom:16px;background:#22333C;border:1px solid var(--focus);color:var(--txt);padding:12px 16px;border-radius:8px;max-width:420px;box-shadow:0 8px 30px rgba(0,0,0,.5);opacity:0;transform:translateY(10px);transition:.25s}
+.toast.show{opacity:1;transform:none}
+dialog{background:var(--panel);color:var(--txt);border:2px solid var(--hic);border-radius:10px;padding:20px;max-width:520px;width:92%}
+dialog::backdrop{background:rgba(0,0,0,.65)}
+dialog h2{color:var(--hic);margin-bottom:8px}
+dialog p{margin-bottom:10px}
+dialog .row{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
+dialog button{padding:10px 14px;border-radius:6px;border:1px solid var(--line);background:#22333C;cursor:pointer;min-height:44px;font-weight:700}
+dialog button.danger{background:var(--hic);color:#140505;border-color:var(--hic)}
+.settings{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.settings label{display:flex;flex-direction:column;gap:6px;font-size:.85rem;color:var(--mut)}
+.settings input[type=range]{width:100%}
+.settings output{font-family:ui-monospace,monospace;color:var(--txt)}
+footer{padding:14px 20px;color:var(--mut);font-size:.78rem;border-top:1px solid var(--line);margin-top:8px}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Vai al contenuto</a>
+
+<header class="topbar">
+  <div class="brand">
+    <h1>Ener<span>Guard</span></h1>
+    <small>Supervisione umana · Manutenzione predittiva rete</small>
+  </div>
+  <div class="kpis" role="region" aria-label="Indicatori di supervisione" aria-live="polite" id="kpis"></div>
+  <div class="tools" role="group" aria-label="Accessibilità e demo">
+    <button id="btnContrast" aria-pressed="false" title="Alto contrasto">Contrasto</button>
+    <button id="btnSize" aria-pressed="false" title="Testo grande">A+</button>
+    <button id="btnReset" title="Ricarica la demo con nuove decisioni">Reset demo</button>
+  </div>
+</header>
+
+<section class="estop" role="region" aria-label="Emergency stop (Art. 14(4)(f))">
+  <label for="stopScope">Interruzione · Art. 14(4)(f)</label>
+  <select id="stopScope" aria-label="Ambito dell'interruzione">
+    <option value="GLOBALE">Ambito: GLOBALE</option>
+    <option value="area:Nord">area: Nord</option><option value="area:Centro">area: Centro</option>
+    <option value="area:Sud">area: Sud</option><option value="area:Isole">area: Isole</option>
+    <option value="tipo:trasformatore">tipo: trasformatore</option><option value="tipo:turbina_eolica">tipo: turbina eolica</option>
+    <option value="tipo:linea_AT">tipo: linea AT</option><option value="tipo:cabina_primaria">tipo: cabina primaria</option>
+  </select>
+  <input id="stopMot" type="text" placeholder="Motivazione obbligatoria (min 15 caratteri)" aria-label="Motivazione dello stop" maxlength="200">
+  <button class="estop-btn" id="btnStop">■ Stop</button>
+  <div class="stops" id="stops" aria-live="polite" aria-label="Interruzioni attive"></div>
+</section>
+
+<nav class="tabs" role="tablist" aria-label="Sezioni della dashboard">
+  <button role="tab" id="tab-coda" aria-controls="p-coda" aria-selected="true">Coda decisioni <span class="n" id="nCoda">0</span></button>
+  <button role="tab" id="tab-matrice" aria-controls="p-matrice" aria-selected="false" tabindex="-1">Matrice confidenza × rischio</button>
+  <button role="tab" id="tab-bias" aria-controls="p-bias" aria-selected="false" tabindex="-1">Fairness & drift</button>
+  <button role="tab" id="tab-audit" aria-controls="p-audit" aria-selected="false" tabindex="-1">Audit trail</button>
+  <button role="tab" id="tab-config" aria-controls="p-config" aria-selected="false" tabindex="-1">Soglie di routing</button>
+</nav>
+
+<main id="main">
+  <!-- CODA -->
+  <div role="tabpanel" id="p-coda" aria-labelledby="tab-coda">
+    <div class="grid2">
+      <section class="panel">
+        <div class="phead"><h2>In attesa di giudizio umano</h2><span class="art">ART. 14(4)(d)(e)</span></div>
+        <div class="pbody">
+          <div class="filters">
+            <label for="fLivello">Livello</label>
+            <select id="fLivello"><option value="">Tutti</option><option>HIC</option><option>HITL</option></select>
+            <label for="fArea">Area</label>
+            <select id="fArea"><option value="">Tutte</option><option>Nord</option><option>Centro</option><option>Sud</option><option>Isole</option></select>
+            <label for="operatore">Operatore</label>
+            <input id="operatore" value="OP-014" aria-label="Identificativo operatore" size="8">
+          </div>
+          <div id="coda"></div>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="phead"><h2>Decisioni recenti</h2><span class="art">ULTIME 8</span></div>
+        <div class="pbody" id="recenti"></div>
+      </section>
+    </div>
+  </div>
+
+  <!-- MATRICE -->
+  <div role="tabpanel" id="p-matrice" aria-labelledby="tab-matrice" hidden>
+    <section class="panel">
+      <div class="phead"><h2>Dove decide l'AI e dove serve l'umano</h2><span class="art">ART. 14(4)(b)</span></div>
+      <div class="pbody">
+        <div id="matrix"></div>
+        <div class="legend">
+          <span><i style="background:var(--hic)"></i>HIC · veto umano</span>
+          <span><i style="background:var(--hitl)"></i>HITL · approvazione umana</span>
+          <span><i style="background:var(--hotl)"></i>HOTL · auto-eseguite, monitorate</span>
+        </div>
+        <p class="note">Le soglie sono quelle dichiarate nella scheda "Soglie di routing" e applicate dal codice (KPI A6). L'utenza critica forza HIC a prescindere dalla posizione nella matrice. Passa il mouse o il focus su un punto per i dettagli.</p>
+      </div>
+    </section>
+  </div>
+
+  <!-- BIAS -->
+  <div role="tabpanel" id="p-bias" aria-labelledby="tab-bias" hidden>
+    <div class="grid2">
+      <section class="panel">
+        <div class="phead"><h2>Metriche per area geografica</h2><span class="art">ART. 10 · 14(4)(c)</span></div>
+        <div class="pbody">
+          <table aria-describedby="biasNote">
+            <thead><tr><th scope="col">Area</th><th scope="col">Recall</th><th scope="col">FNR</th><th scope="col">Calibrazione Δ</th><th scope="col">Override umano</th><th scope="col">Stato</th></tr></thead>
+            <tbody id="biasBody"></tbody>
+          </table>
+          <div class="bignote" id="biasAlert"></div>
+          <p class="note" id="biasNote">* Calibrazione calcolata sulle label registrate: se le label storiche sono incomplete, la coerenza col dato storico non è una garanzia. Il tasso di override è calcolato in tempo reale dalle vostre decisioni.</p>
+          <button class="btn" id="btnPromote" style="margin-top:10px" aria-pressed="false">Promuovi tutte le decisioni HOTL del Sud a HITL</button>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="phead"><h2>Drift di performance · ultime 12 settimane</h2><span class="art">MONITORAGGIO CONTINUO</span></div>
+        <div class="pbody"><div id="drift"></div><p class="note">Accuratezza settimanale e confidenza media. Soglia di alert: accuratezza sotto 0.80 per due settimane consecutive.</p></div>
+      </section>
+    </div>
+  </div>
+
+  <!-- AUDIT -->
+  <div role="tabpanel" id="p-audit" aria-labelledby="tab-audit" hidden>
+    <section class="panel">
+      <div class="phead"><h2>Audit trail</h2><span class="art">ART. 12</span></div>
+      <div class="pbody">
+        <div class="filters">
+          <label for="fAudit">Cerca</label><input id="fAudit" placeholder="asset, operatore, evento…" aria-label="Filtra il log">
+          <button class="btn" id="btnVerify">Verifica integrità catena</button>
+          <button class="btn" id="btnExport">Esporta JSON</button>
+          <button class="btn" id="btnTamper" title="Simula una manomissione del log per dimostrare la verifica">Simula manomissione</button>
+        </div>
+        <div class="integ" id="integ"><span class="dot"></span><span>Catena non ancora verificata</span></div>
+        <div style="overflow:auto"><table><thead><tr><th scope="col">Ora</th><th scope="col">Attore</th><th scope="col">Evento</th><th scope="col">Decisione</th><th scope="col">Motivazione</th><th scope="col">Hash</th></tr></thead><tbody id="auditBody"></tbody></table></div>
+      </div>
+    </section>
+  </div>
+
+  <!-- CONFIG -->
+  <div role="tabpanel" id="p-config" aria-labelledby="tab-config" hidden>
+    <section class="panel">
+      <div class="phead"><h2>Matrice di routing dichiarata</h2><span class="art">KPI A6 · COERENZA DOCUMENTO / CODICE</span></div>
+      <div class="pbody">
+        <div class="settings">
+          <label>Soglia di confidenza (sotto → HITL) <input type="range" id="thConf" min="0.5" max="0.99" step="0.01" value="0.80"><output id="oConf">0.80</output></label>
+          <label>Soglia di rischio (sopra → HITL) <input type="range" id="thRisk" min="0.2" max="0.95" step="0.01" value="0.60"><output id="oRisk">0.60</output></label>
+        </div>
+        <p class="note" style="margin-top:12px">Regole fisse: utenza critica → HIC sempre; riduzione carico su utenza alta/critica → HIC; azioni leggere (nessuna azione, ispezione di routine) con rischio basso e confidenza alta → HOTL; tutto il resto → HITL. Cambiare una soglia re-instrada le decisioni ancora in coda e viene registrato nell'audit trail.</p>
+      </div>
+    </section>
+  </div>
+</main>
+
+<footer>EnerGuard · demo funzionante del mockup di riferimento per l'hackathon "AI Human Oversight". Nessun dato reale. Ogni sezione risponde a un requisito dell'Art. 14 AI Act.</footer>
+
+<dialog id="dlgStop" aria-labelledby="dlgTitle">
+  <h2 id="dlgTitle">Confermare l'interruzione?</h2>
+  <p id="dlgText"></p>
+  <p class="note">Le nuove raccomandazioni nell'ambito verranno bloccate e quelle già in coda diventeranno non eseguibili. L'operazione viene registrata nell'audit trail.</p>
+  <div class="row"><button id="dlgNo">Annulla</button><button class="danger" id="dlgYes">Conferma stop</button></div>
+</dialog>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+/* ===================== DATI DEMO (generazione deterministica) ===================== */
+const AREE=["Nord","Centro","Sud","Isole"], TIPI=["trasformatore","turbina_eolica","linea_AT","cabina_primaria"];
+const AZIONI=["nessuna_azione","ispezione_routine","programma_manutenzione","riduci_carico","ispezione_urgente"];
+const AZ_LBL={nessuna_azione:"nessuna azione",ispezione_routine:"ispezione di routine",programma_manutenzione:"programma manutenzione",riduci_carico:"riduci carico",ispezione_urgente:"ispezione urgente"};
+let seed=7; const rnd=()=>{seed=(seed*1103515245+12345)&0x7fffffff;return seed/0x7fffffff};
+function genera(n){
+  const out=[];
+  for(let i=0;i<n;i++){
+    const area=AREE[Math.floor(rnd()*4)], tipo=TIPI[Math.floor(rnd()*4)];
+    const eta=Math.round(6+rnd()*26+(area==="Sud"||area==="Isole"?6:0));
+    const vib=+(rnd()*9).toFixed(1), temp=Math.round(32+rnd()*24), giorni=Math.round(40+rnd()*400+(area==="Sud"?120:0));
+    const logit=-5.9+0.09*eta+0.45*vib+0.05*(temp-40)+0.004*giorni+(rnd()-0.5);
+    const p=1/(1+Math.exp(-logit)); const prob=+Math.min(0.98,Math.max(0.03,p)).toFixed(2);
+    const conf=+Math.min(0.99,Math.max(0.5,Math.max(prob,1-prob)+rnd()*0.18-0.04)).toFixed(2);
+    const crit=rnd()<0.12?"critica":rnd()<0.35?"alta":"standard";
+    let az=prob>0.75?"ispezione_urgente":prob>0.55?"programma_manutenzione":prob>0.3?"ispezione_routine":"nessuna_azione";
+    if(prob>0.7&&crit!=="standard"&&rnd()<0.5) az="riduci_carico";
+    const fattori=[["vibrazione",vib,vib>6?"molto sopra la norma":vib>4?"sopra la norma":"nella norma",0.45*vib],
+                   ["giorni senza manutenzione",giorni,giorni>300?"intervallo molto lungo":"intervallo regolare",0.004*giorni],
+                   ["temperatura di esercizio",temp+" °C",temp>50?"elevata":"regolare",0.05*(temp-40)],
+                   ["età",eta+" anni",eta>25?"asset anziano":"età media",0.09*eta]].sort((a,b)=>b[3]-a[3]);
+    out.push({id:"AST-"+String(1000+Math.floor(rnd()*9000)).padStart(5,"0"),uid:"d"+i+Math.floor(rnd()*1e6).toString(36),tipo,area,crit,prob,conf,az,fattori,creata:Date.now()-Math.floor(rnd()*60)*60000,stato:"IN_ATTESA",livello:null,revisore:null,motivazione:null,t_apertura:null});
+  }
+  return out;
+}
+
+/* ===================== STATO ===================== */
+const state={decisioni:[],log:[],stops:new Set(),thConf:0.80,thRisk:0.60,promoteSud:false,tampered:false};
+const $=s=>document.querySelector(s);
+
+/* ===================== AUDIT (catena di hash) ===================== */
+function fnv(str){let h=0x811c9dc5;for(let i=0;i<str.length;i++){h^=str.charCodeAt(i);h=Math.imul(h,0x01000193)>>>0}return h.toString(16).padStart(8,"0")}
+function logEvento(attore,evento,d,extra){
+  const prev=state.log.length?state.log[state.log.length-1].hash:"GENESI";
+  const rec={ts:new Date().toISOString(),attore,evento,prev,dec:d?{id:d.id,uid:d.uid,livello:d.livello,stato:d.stato,azione:d.az,prob:d.prob,conf:d.conf,area:d.area}:null,mot:(d&&d.motivazione)||(extra&&extra.mot)||"",extra:extra||null};
+  rec.hash=fnv(JSON.stringify({...rec,hash:undefined}));
+  state.log.push(rec);
+}
+function verificaCatena(){
+  let prev="GENESI";
+  for(let i=0;i<state.log.length;i++){const r=state.log[i];const {hash,...rest}=r;
+    if(r.prev!==prev||fnv(JSON.stringify({...rest,hash:undefined}))!==hash) return {ok:false,idx:i};
+    prev=hash}
+  return {ok:true,n:state.log.length};
+}
+
+/* ===================== ROUTING ===================== */
+function route(d){
+  if(d.crit==="critica"||(d.az==="riduci_carico"&&d.crit!=="standard")) return "HIC";
+  if(state.promoteSud&&d.area==="Sud") return "HITL";
+  if(d.prob>=state.thRisk||d.conf<state.thConf) return "HITL";
+  if(d.az==="nessuna_azione"||d.az==="ispezione_routine") return "HOTL";
+  return "HITL";
+}
+function stopApplicabile(d){return state.stops.has("GLOBALE")||state.stops.has("area:"+d.area)||state.stops.has("tipo:"+d.tipo)}
+function sottometti(d){
+  if(stopApplicabile(d)){d.stato="BLOCCATA_STOP";logEvento("SISTEMA","blocco_emergency_stop",d);return}
+  d.livello=route(d);
+  if(d.livello==="HOTL"){d.stato="AUTO_ESEGUITA";esegui(d);logEvento("SISTEMA","auto_esecuzione_HOTL",d)}
+  else{d.stato="IN_ATTESA";logEvento("SISTEMA","in_coda_"+d.livello,d)}
+}
+function esegui(d){ // UNICO punto di esecuzione
+  if(!["APPROVATA","MODIFICATA","AUTO_ESEGUITA"].includes(d.stato)) throw new Error("Esecuzione con stato non valido: "+d.stato);
+  if(d.livello==="HIC"&&d.stato==="AUTO_ESEGUITA") throw new Error("Una decisione HIC non può essere auto-eseguita");
+  d.eseguita=true;
+}
+function revisiona(d,esito,mot,azMod){
+  if(d.stato!=="IN_ATTESA") throw new Error("Decisione già chiusa");
+  if(!mot||mot.trim().length<15) throw new Error("Motivazione obbligatoria (min 15 caratteri)");
+  d.stato=esito;d.revisore=$("#operatore").value||"OP-?";d.motivazione=mot.trim();d.t_chiusura=Date.now();
+  if(azMod) d.az=azMod;
+  if(esito==="APPROVATA"||esito==="MODIFICATA") esegui(d);
+  logEvento(d.revisore,"revisione_"+esito,d);
+}
+
+/* ===================== KPI ===================== */
+function kpi(){
+  const chiuse=state.decisioni.filter(d=>["APPROVATA","MODIFICATA","RIFIUTATA","ESCALATION"].includes(d.stato));
+  const over=chiuse.filter(d=>d.stato==="RIFIUTATA"||d.stato==="MODIFICATA");
+  const attesa=state.decisioni.filter(d=>d.stato==="IN_ATTESA");
+  const tempi=chiuse.filter(d=>d.t_apertura&&d.t_chiusura).map(d=>(d.t_chiusura-d.t_apertura)/1000).sort((a,b)=>a-b);
+  const med=tempi.length?tempi[Math.floor(tempi.length/2)]:null;
+  const rubber=chiuse.length?chiuse.filter(d=>d.motivazione&&d.motivazione.length<30).length/chiuse.length:0;
+  const improprie=state.decisioni.filter(d=>d.livello!=="HOTL"&&d.eseguita&&!d.revisore).length;
+  const v=verificaCatena();
+  return {attesa:attesa.length,override:chiuse.length?over.length/chiuse.length:null,med,rubber,improprie,chiuse:chiuse.length,integra:v.ok,hotl:state.decisioni.filter(d=>d.stato==="AUTO_ESEGUITA").length};
+}
+function renderKPI(){
+  const k=kpi();
+  const f=(x)=>x==null?"–":Math.round(x*100)+"%";
+  const ms=k.med==null?"–":(k.med<60?Math.round(k.med)+"s":Math.floor(k.med/60)+":"+String(Math.round(k.med%60)).padStart(2,"0"));
+  $("#kpis").innerHTML=`
+    <div class="kpi"><b class="${k.attesa>8?"warn":""}">${k.attesa}</b><span>In attesa (A5)</span></div>
+    <div class="kpi"><b>${ms}</b><span>Mediana revisione (A3)</span></div>
+    <div class="kpi"><b class="${k.override!=null&&(k.override<0.05||k.override>0.4)?"warn":""}">${f(k.override)}</b><span>Override (A2)</span></div>
+    <div class="kpi"><b class="${k.rubber>0.1?"warn":"okc"}">${f(k.rubber)}</b><span>Rubber-stamping (A4)</span></div>
+    <div class="kpi"><b class="${k.improprie?"bad":"okc"}">${k.improprie}</b><span>Auto-esec. improprie (A1)</span></div>
+    <div class="kpi"><b class="okc">${k.hotl}</b><span>HOTL auto-eseguite</span></div>
+    <div class="kpi"><b class="${k.integra?"okc":"bad"}">${k.integra?"OK":"KO"}</b><span>Integrità audit (D2)</span></div>`;
+  $("#nCoda").textContent=k.attesa;
+}
+
+/* ===================== RENDER CODA ===================== */
+function spiegazione(d){
+  const [f1,f2,f3]=d.fattori;
+  return `<b>Perché il sistema lo raccomanda:</b> ${f1[0]} a ${f1[1]}, ${f1[2]}: è il fattore che pesa di più. Contribuiscono ${f2[0]} (${f2[1]}, ${f2[2]}) e ${f3[0]} (${f3[1]}, ${f3[2]}).`;
+}
+function incertezza(d){
+  if(d.livello==="HIC") return `⚠ ${d.az==="riduci_carico"?"Ridurre il carico impatterebbe un'utenza "+d.crit:"L'utenza servita è "+d.crit}: il sistema NON può agire da solo. La decisione è interamente sua.`;
+  if(d.conf<state.thConf) return `⚠ Il modello è incerto su questo caso (confidenza ${d.conf}): i fattori non concordano tra loro. Valutare un sopralluogo prima di programmare.`;
+  return `ℹ Confidenza ${d.conf}, rischio ${d.prob}: sopra la soglia di rischio dichiarata, serve la sua approvazione.`;
+}
+function renderCoda(){
+  const fl=$("#fLivello").value, fa=$("#fArea").value;
+  const list=state.decisioni.filter(d=>d.stato==="IN_ATTESA"&&(!fl||d.livello===fl)&&(!fa||d.area===fa))
+    .sort((a,b)=>(b.livello==="HIC")-(a.livello==="HIC")||b.prob-a.prob);
+  const box=$("#coda");
+  if(!list.length){box.innerHTML=`<div class="empty">Nessuna decisione in attesa con questi filtri.</div>`;return}
+  box.innerHTML=list.map(d=>{
+    d.t_apertura=d.t_apertura||d.creata;
+    const min=Math.max(1,Math.round((Date.now()-d.creata)/60000));
+    return `<article class="card ${d.livello.toLowerCase()}" aria-labelledby="h-${d.uid}">
+      <div class="chead"><div><span class="cid" id="h-${d.uid}">${d.id}</span> <span class="tag ${d.livello.toLowerCase()}">${d.livello==="HIC"?"HIC · veto umano":"HITL · serve approvazione"}</span>
+        <div class="meta">${d.tipo.replace("_"," ")} · ${d.area} · Utenza <b>${d.crit}</b> · in coda da ${min} min</div></div>
+        <span class="mono" style="color:var(--mut);font-size:.75rem">#${d.uid}</span></div>
+      <div class="nums"><div>P(guasto 30gg) <b style="color:${d.prob>=state.thRisk?"var(--hic)":"var(--txt)"}">${d.prob}</b></div>
+        <div>Confidenza <b style="color:${d.conf<state.thConf?"var(--hitl)":"var(--txt)"}">${d.conf}${d.conf<state.thConf?" · bassa":""}</b></div>
+        <div>Azione proposta <b>${AZ_LBL[d.az]}</b></div></div>
+      <div class="exp">${spiegazione(d)}<span class="unc">${incertezza(d)}</span></div>
+      <div class="acts">
+        <div class="mot"><label for="m-${d.uid}" class="sr">Motivazione</label>
+          <textarea id="m-${d.uid}" placeholder="Motivazione obbligatoria (min 15 caratteri)…" data-uid="${d.uid}"></textarea>
+          <small id="c-${d.uid}" class="ko">0 / 15 caratteri · i pulsanti si sbloccano con la motivazione</small>
+          <div class="modsel" id="ms-${d.uid}"><label for="s-${d.uid}" style="font-size:.85rem;color:var(--mut)">Nuova azione</label>
+            <select id="s-${d.uid}">${AZIONI.map(a=>`<option value="${a}" ${a===d.az?"selected":""}>${AZ_LBL[a]}</option>`).join("")}</select></div></div>
+        <div class="btns" role="group" aria-label="Azioni sulla decisione ${d.id}">
+          <button class="ok" disabled data-act="APPROVATA" data-uid="${d.uid}">Approva</button>
+          <button disabled data-act="MODIFICATA" data-uid="${d.uid}">Modifica azione e approva</button>
+          <button class="no" disabled data-act="RIFIUTATA" data-uid="${d.uid}">Rifiuta</button>
+          <button disabled data-act="ESCALATION" data-uid="${d.uid}">Escalation</button>
+        </div></div></article>`}).join("");
+}
+function renderRecenti(){
+  const rec=state.decisioni.filter(d=>d.revisore).sort((a,b)=>b.t_chiusura-a.t_chiusura).slice(0,8);
+  $("#recenti").innerHTML=rec.length?rec.map(d=>`<div style="padding:8px 0;border-bottom:1px solid var(--line);font-size:.88rem">
+    <span class="mono"><b>${d.id}</b></span> · <span class="pill ${d.stato==="RIFIUTATA"?"bad":d.stato==="MODIFICATA"||d.stato==="ESCALATION"?"warn":"ok"}">${d.stato}</span> · ${AZ_LBL[d.az]} · ${d.revisore}<br><span style="color:var(--mut)">«${d.motivazione}»</span></div>`).join("")
+    :`<div class="empty">Nessuna decisione ancora revisionata. Approva, modifica o rifiuta una card per vedere qui l'esito e i KPI aggiornarsi.</div>`;
+}
+
+/* ===================== MATRICE ===================== */
+function renderMatrix(){
+  const W=760,H=380,L=60,T=20,R=20,B=48;
+  const x=c=>L+(c-0.5)/(0.5)*(W-L-R), y=p=>T+(1-p)*(H-T-B);
+  const xc=x(state.thConf), yr=y(state.thRisk);
+  const pts=state.decisioni.filter(d=>d.stato!=="BLOCCATA_STOP").map(d=>`<circle cx="${x(d.conf).toFixed(1)}" cy="${y(d.prob).toFixed(1)}" r="${d.stato==="IN_ATTESA"?6:4}" fill="var(--${d.livello.toLowerCase()})" stroke="${d.stato==="IN_ATTESA"?"#fff":"none"}" stroke-width="1.2" tabindex="0" role="img" aria-label="${d.id}, ${d.livello}, rischio ${d.prob}, confidenza ${d.conf}, stato ${d.stato}"><title>${d.id} · ${d.livello} · rischio ${d.prob} · conf ${d.conf} · ${d.stato}</title></circle>`).join("");
+  $("#matrix").innerHTML=`<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Matrice confidenza-rischio con zone di routing">
+    <rect x="${L}" y="${T}" width="${W-L-R}" height="${yr-T}" fill="var(--hic-d)" opacity=".85"/>
+    <rect x="${L}" y="${yr}" width="${xc-L}" height="${H-B-yr}" fill="var(--hitl-d)" opacity=".85"/>
+    <rect x="${xc}" y="${yr}" width="${W-R-xc}" height="${H-B-yr}" fill="var(--hotl-d)" opacity=".9"/>
+    <text x="${L+10}" y="${T+20}" fill="var(--hic)" font-size="14" font-weight="700">HIC/HITL — rischio alto: serve l'umano</text>
+    <text x="${L+10}" y="${yr+22}" fill="var(--hitl)" font-size="14" font-weight="700">HITL — confidenza bassa</text>
+    <text x="${xc+10}" y="${H-B-12}" fill="var(--hotl)" font-size="14" font-weight="700">HOTL — auto + monitoraggio</text>
+    <line x1="${L}" y1="${H-B}" x2="${W-R}" y2="${H-B}" stroke="var(--line)"/><line x1="${L}" y1="${T}" x2="${L}" y2="${H-B}" stroke="var(--line)"/>
+    <line x1="${xc}" y1="${yr}" x2="${xc}" y2="${H-B}" stroke="var(--mut)" stroke-dasharray="5 4"/><line x1="${L}" y1="${yr}" x2="${W-R}" y2="${yr}" stroke="var(--mut)" stroke-dasharray="5 4"/>
+    <text x="${xc+4}" y="${H-B-2}" fill="var(--mut)" font-size="11">conf ${state.thConf.toFixed(2)}</text>
+    <text x="${W-R-70}" y="${yr-5}" fill="var(--mut)" font-size="11">rischio ${state.thRisk.toFixed(2)}</text>
+    <text x="${(W+L)/2}" y="${H-12}" fill="var(--mut)" font-size="12" text-anchor="middle">Confidenza del modello →</text>
+    <text x="16" y="${(H-B+T)/2}" fill="var(--mut)" font-size="12" text-anchor="middle" transform="rotate(-90 16 ${(H-B+T)/2})">Rischio della decisione →</text>
+    ${pts}</svg>`;
+}
+
+/* ===================== BIAS & DRIFT ===================== */
+const BIAS={Isole:{recall:0.79,fnr:0.21,cal:"+0.01"},Sud:{recall:0.47,fnr:0.53,cal:"+0.02*"},Centro:{recall:0.38,fnr:0.62,cal:"-0.01"},Nord:{recall:0.29,fnr:0.71,cal:"-0.03"}};
+function renderBias(){
+  const best=Math.max(...Object.values(BIAS).map(b=>b.recall));
+  const rows=Object.entries(BIAS).map(([a,b])=>{
+    const chiuse=state.decisioni.filter(d=>d.area===a&&d.revisore);
+    const ov=chiuse.filter(d=>d.stato==="RIFIUTATA"||d.stato==="MODIFICATA").length;
+    const ovs=chiuse.length?Math.round(ov/chiuse.length*100)+"% ("+chiuse.length+")":"–";
+    const gap=best-b.recall;
+    const st=a==="Sud"?`<span class="pill warn">Indagare</span>`:gap>0.4?`<span class="pill bad">Gap ${gap.toFixed(2)}</span>`:gap>0.15?`<span class="pill warn">Gap recall</span>`:`<span class="pill ok">OK</span>`;
+    return `<tr class="${gap>0.4?"alert":""}"><th scope="row" style="text-transform:none;font-size:.9rem;color:var(--txt)">${a}</th><td>${b.recall.toFixed(2)}</td><td>${b.fnr.toFixed(2)}</td><td>${b.cal}</td><td>${ovs}</td><td>${st}</td></tr>`}).join("");
+  $("#biasBody").innerHTML=rows;
+  $("#biasAlert").innerHTML=`<b>Allerta attiva:</b> i profili di degrado di Sud e Isole sono simili a fronte di tassi di guasto storici molto diversi. Sospetta sotto-segnalazione storica dei guasti (label bias). ${state.promoteSud?"<b>Mitigazione in corso:</b> tutte le decisioni HOTL dell'area Sud sono promosse a HITL finché l'indagine non si chiude.":"<b>Mitigazione suggerita:</b> promuovere le decisioni HOTL del Sud a HITL (pulsante sotto)."}`;
+  $("#btnPromote").setAttribute("aria-pressed",state.promoteSud);
+  $("#btnPromote").textContent=state.promoteSud?"Mitigazione attiva: HOTL del Sud → HITL (clicca per revocare)":"Promuovi tutte le decisioni HOTL del Sud a HITL";
+  // drift
+  const acc=[0.86,0.87,0.85,0.86,0.84,0.85,0.83,0.84,0.82,0.83,0.81,0.84], conf=[0.88,0.88,0.87,0.87,0.86,0.86,0.85,0.85,0.84,0.83,0.83,0.84];
+  const W=700,H=220,L=44,B=30,T=14,R=10; const x=i=>L+i*(W-L-R)/11, y=v=>T+(1-(v-0.7)/0.3)*(H-T-B);
+  const path=arr=>arr.map((v,i)=>(i?"L":"M")+x(i).toFixed(1)+","+y(v).toFixed(1)).join(" ");
+  $("#drift").innerHTML=`<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Andamento accuratezza e confidenza media nelle ultime 12 settimane">
+    <line x1="${L}" y1="${y(0.8)}" x2="${W-R}" y2="${y(0.8)}" stroke="var(--hic)" stroke-dasharray="4 4"/><text x="${W-R}" y="${y(0.8)-4}" fill="var(--hic)" font-size="11" text-anchor="end">soglia alert 0.80</text>
+    ${[0.7,0.8,0.9,1.0].map(v=>`<text x="${L-6}" y="${y(v)+4}" fill="var(--mut)" font-size="11" text-anchor="end">${v.toFixed(2)}</text>`).join("")}
+    <path d="${path(acc)}" fill="none" stroke="var(--hitl)" stroke-width="2.5"/><path d="${path(conf)}" fill="none" stroke="var(--hotl)" stroke-width="2.5"/>
+    ${acc.map((v,i)=>`<circle cx="${x(i)}" cy="${y(v)}" r="3.5" fill="var(--hitl)"><title>Settimana ${i+1}: accuratezza ${v}</title></circle>`).join("")}
+    <text x="${L}" y="${H-8}" fill="var(--mut)" font-size="11">sett. 1</text><text x="${W-R}" y="${H-8}" fill="var(--mut)" font-size="11" text-anchor="end">sett. 12</text>
+    <text x="${W/2}" y="${T+10}" fill="var(--hitl)" font-size="12" text-anchor="middle">— accuratezza   <tspan fill="var(--hotl)">— confidenza media</tspan></text></svg>`;
+}
+
+/* ===================== AUDIT ===================== */
+function renderAudit(){
+  const q=($("#fAudit").value||"").toLowerCase();
+  const rows=[...state.log].reverse().filter(r=>!q||JSON.stringify(r).toLowerCase().includes(q)).slice(0,200).map(r=>`<tr>
+    <td class="mono">${r.ts.slice(11,19)}</td><td class="mono" style="color:${r.attore==="SISTEMA"?"var(--hotl)":"var(--hitl)"}">${r.attore}</td><td>${r.evento}</td>
+    <td class="mono">${r.dec?r.dec.id+" · "+r.dec.livello+" · "+AZ_LBL[r.dec.azione]:(r.extra&&r.extra.ambito?r.extra.ambito:"")}</td><td style="color:var(--mut)">${r.mot||""}</td><td class="mono" style="color:var(--mut)">${r.hash}</td></tr>`).join("");
+  $("#auditBody").innerHTML=rows||`<tr><td colspan="6" class="empty">Nessun record</td></tr>`;
+}
+function verificaUI(){
+  const v=verificaCatena(); const el=$("#integ");
+  el.className="integ"+(v.ok?"":" bad");
+  el.innerHTML=`<span class="dot"></span><span>${v.ok?"Catena di hash verificata · "+v.n+" record integri":"CATENA COMPROMESSA al record #"+(v.idx+1)+": il log è stato modificato dopo la scrittura"}</span>`;
+  renderKPI();
+}
+
+/* ===================== STOP ===================== */
+function renderStops(){
+  $("#stops").innerHTML=[...state.stops].map(s=>`<span class="chip">STOP ${s}<button data-stop="${s}" aria-label="Disattiva stop ${s}">Disattiva</button></span>`).join("")||`<span class="note">Nessuna interruzione attiva</span>`;
+}
+function applicaStop(ambito,mot){
+  state.stops.add(ambito);
+  logEvento($("#operatore").value,"emergency_stop_ON",null,{ambito,mot});
+  let n=0;
+  state.decisioni.forEach(d=>{if(d.stato==="IN_ATTESA"&&stopApplicabile(d)){d.stato="BLOCCATA_STOP";n++;logEvento("SISTEMA","blocco_emergency_stop",d)}});
+  toast(`Stop ${ambito} attivo: ${n} decisioni in coda bloccate. Le nuove raccomandazioni nell'ambito verranno rifiutate.`);
+  renderAll();
+}
+
+/* ===================== UI ===================== */
+function toast(msg){const t=$("#toast");t.textContent=msg;t.classList.add("show");clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove("show"),3800)}
+function renderAll(){renderKPI();renderCoda();renderRecenti();renderMatrix();renderBias();renderAudit();renderStops()}
+function reset(){seed=Date.now()%100000;state.decisioni=[];state.log=[];state.stops.clear();state.tampered=false;state.promoteSud=false;
+  logEvento("SISTEMA","avvio_sistema",null,{soglie:{conf:state.thConf,rischio:state.thRisk}});
+  state.decisioni=genera(38);state.decisioni.forEach(sottometti);renderAll();verificaUI();toast("Demo ricaricata: nuove raccomandazioni in coda.")}
+
+// coda: motivazione e pulsanti
+$("#coda").addEventListener("input",e=>{
+  if(e.target.tagName!=="TEXTAREA")return;
+  const uid=e.target.dataset.uid, n=e.target.value.trim().length, ok=n>=15;
+  const c=$("#c-"+uid); c.textContent=`${n} / 15 caratteri${ok?" · motivazione valida":" · i pulsanti si sbloccano con la motivazione"}`; c.className=ok?"":"ko";
+  document.querySelectorAll(`[data-uid="${uid}"][data-act]`).forEach(b=>b.disabled=!ok);
+});
+$("#coda").addEventListener("click",e=>{
+  const b=e.target.closest("button[data-act]"); if(!b)return;
+  const d=state.decisioni.find(x=>x.uid===b.dataset.uid); const mot=$("#m-"+d.uid).value;
+  if(b.dataset.act==="MODIFICATA"&&!$("#ms-"+d.uid).classList.contains("show")){$("#ms-"+d.uid).classList.add("show");$("#s-"+d.uid).focus();b.textContent="Conferma modifica e approva";return}
+  try{revisiona(d,b.dataset.act,mot,b.dataset.act==="MODIFICATA"?$("#s-"+d.uid).value:null);
+    toast(`${d.id}: ${b.dataset.act.toLowerCase()} da ${d.revisore}. Registrato nell'audit trail.`);renderAll()}
+  catch(err){toast("Errore: "+err.message)}
+});
+$("#fLivello").addEventListener("change",renderCoda);$("#fArea").addEventListener("change",renderCoda);
+
+// stop
+$("#btnStop").addEventListener("click",()=>{
+  const mot=$("#stopMot").value.trim(); if(mot.length<15){toast("Motivazione dello stop obbligatoria (min 15 caratteri).");$("#stopMot").focus();return}
+  const amb=$("#stopScope").value; $("#dlgText").textContent=`Ambito: ${amb}. Motivazione: «${mot}».`; $("#dlgStop").showModal();
+});
+$("#dlgNo").addEventListener("click",()=>$("#dlgStop").close());
+$("#dlgYes").addEventListener("click",()=>{$("#dlgStop").close();applicaStop($("#stopScope").value,$("#stopMot").value.trim());$("#stopMot").value=""});
+$("#stops").addEventListener("click",e=>{const b=e.target.closest("button[data-stop]");if(!b)return;
+  state.stops.delete(b.dataset.stop);logEvento($("#operatore").value,"emergency_stop_OFF",null,{ambito:b.dataset.stop,mot:"riattivazione dopo verifica"});
+  state.decisioni.forEach(d=>{if(d.stato==="BLOCCATA_STOP"&&!stopApplicabile(d)){d.stato="IN_ATTESA";logEvento("SISTEMA","sblocco_in_coda",d)}});
+  toast(`Stop ${b.dataset.stop} disattivato: le decisioni bloccate tornano in coda.`);renderAll()});
+
+// tabs (ARIA + frecce)
+const tabs=[...document.querySelectorAll("[role=tab]")];
+function selectTab(t){tabs.forEach(x=>{const on=x===t;x.setAttribute("aria-selected",on);x.tabIndex=on?0:-1;document.getElementById(x.getAttribute("aria-controls")).hidden=!on});t.focus()}
+tabs.forEach(t=>{t.addEventListener("click",()=>selectTab(t));t.addEventListener("keydown",e=>{const i=tabs.indexOf(t);if(e.key==="ArrowRight")selectTab(tabs[(i+1)%tabs.length]);if(e.key==="ArrowLeft")selectTab(tabs[(i-1+tabs.length)%tabs.length]);if(e.key==="Home")selectTab(tabs[0]);if(e.key==="End")selectTab(tabs[tabs.length-1])})});
+
+// bias / audit / config
+$("#btnPromote").addEventListener("click",()=>{state.promoteSud=!state.promoteSud;
+  logEvento($("#operatore").value,state.promoteSud?"mitigazione_ON_sud_HITL":"mitigazione_OFF_sud_HITL",null,{mot:"gap di recall e sospetto label bias area Sud"});
+  state.decisioni.filter(d=>d.stato==="IN_ATTESA").forEach(d=>d.livello=route(d));renderAll();toast(state.promoteSud?"Le decisioni del Sud richiedono ora approvazione umana.":"Mitigazione revocata.")});
+$("#fAudit").addEventListener("input",renderAudit);
+$("#btnVerify").addEventListener("click",verificaUI);
+$("#btnTamper").addEventListener("click",()=>{if(!state.log.length)return;const r=state.log[Math.max(0,state.log.length-3)];r.mot="(modificata a posteriori)";state.tampered=true;renderAudit();verificaUI();toast("Un record è stato alterato: la verifica della catena lo rileva.")});
+$("#btnExport").addEventListener("click",()=>{const blob=new Blob([JSON.stringify(state.log,null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="audit_trail.json";a.click()});
+["thConf","thRisk"].forEach(id=>$("#"+id).addEventListener("input",e=>{state[id]=+e.target.value;$("#o"+id.slice(2)).textContent=(+e.target.value).toFixed(2);
+  logEvento($("#operatore").value,"modifica_soglie",null,{mot:`conf ${state.thConf.toFixed(2)} · rischio ${state.thRisk.toFixed(2)}`});
+  state.decisioni.filter(d=>d.stato==="IN_ATTESA").forEach(d=>d.livello=route(d));renderAll()}));
+
+// accessibilità
+$("#btnContrast").addEventListener("click",e=>{const on=document.documentElement.dataset.contrast!=="high";document.documentElement.dataset.contrast=on?"high":"";e.target.setAttribute("aria-pressed",on)});
+$("#btnSize").addEventListener("click",e=>{const on=document.documentElement.dataset.size!=="large";document.documentElement.dataset.size=on?"large":"";e.target.setAttribute("aria-pressed",on)});
+$("#btnReset").addEventListener("click",reset);
+
+reset();
+</script>
+</body>
+</html>
