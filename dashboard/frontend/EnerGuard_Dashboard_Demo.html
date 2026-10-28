@@ -79,6 +79,12 @@ html[data-contrast="high"] .estop{background:#1a0000}
 /* cards */
 .card{border:1px solid var(--line);border-left:5px solid var(--hitl);border-radius:6px;background:var(--panel2);margin-bottom:12px;padding:12px 14px}
 .card.hic{border-left-color:var(--hic)}
+.card .chead{cursor:pointer;display:flex;justify-content:flex-start;text-align:left;gap:8px;align-items:flex-start;flex-wrap:nowrap}
+.card .chead:focus-visible{outline:2px solid var(--hitl);outline-offset:2px}
+.card .chev{display:inline-block;transition:transform .15s;color:var(--mut)}
+.card.open .chev{transform:rotate(90deg)}
+.card .cbody{display:none;margin-top:8px}
+.card.open .cbody{display:block}
 .chead{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
 .cid{font-family:ui-monospace,monospace;font-weight:700;font-size:1rem}
 .tag{font-size:.75rem;font-weight:800;letter-spacing:.06em;padding:3px 9px;border-radius:4px;text-transform:uppercase}
@@ -136,6 +142,33 @@ dialog button.danger{background:var(--hic);color:#140505;border-color:var(--hic)
 .settings input[type=range]{width:100%}
 .settings output{font-family:ui-monospace,monospace;color:var(--txt)}
 footer{padding:14px 20px;color:var(--mut);font-size:.78rem;border-top:1px solid var(--line);margin-top:8px}
+
+/* --- collegamento al backend --- */
+.tools input.opid{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px;min-height:44px;font-family:ui-monospace,monospace;width:9.5em}
+.offline{background:var(--hic-d);color:#FFD2CB;border-bottom:1px solid var(--hic);padding:10px 16px;font-weight:700}
+h3.sub{font-size:.85rem;color:var(--mut);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 6px}
+.rowb{padding:8px 0;border-bottom:1px solid var(--line);font-size:.88rem}
+table.mini{font-size:.82rem;margin:6px 0}
+table.mini td,table.mini th{padding:5px 6px}
+.exp .src{display:block;margin-top:6px;font-size:.78rem;color:var(--mut)}
+.warnt{color:var(--hitl)}
+.supn{color:var(--hitl)!important}
+.err{color:var(--hic);font-size:.82rem;margin-top:4px;min-height:1em}
+.rg{font-size:.75rem;color:var(--mut)}
+details{margin:6px 0;font-size:.88rem}
+details summary{cursor:pointer;color:var(--focus);padding:4px 0}
+details p{margin:6px 0}
+a.btn{display:inline-flex;align-items:center;text-decoration:none;color:var(--txt)}
+.filters .flab{font-size:.8rem;color:var(--mut)}
+.filters .chks{display:inline-flex;gap:6px}
+.filters .chk{display:inline-flex;align-items:center;gap:6px;font-size:.88rem;color:var(--txt);background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:0 10px;min-height:40px;cursor:pointer}
+.filters .chk input{min-height:0;width:18px;height:18px;padding:0;margin:0;accent-color:var(--focus);cursor:pointer}
+.filters .chk:focus-within{outline:2px solid var(--focus);outline-offset:1px}
+.btn[aria-pressed="true"]{border-color:var(--focus);background:#1E3A4A}
+.dlab{display:block;font-size:.85rem;color:var(--mut);margin-top:8px}
+.dinp{width:100%;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:9px;margin-top:4px;color:var(--txt)}
+dialog#dlgOff,dialog#dlgReset{border-color:var(--hitl)}
+dialog#dlgOff h2,dialog#dlgReset h2{color:var(--hitl)}
 </style>
 </head>
 <body>
@@ -147,33 +180,33 @@ footer{padding:14px 20px;color:var(--mut);font-size:.78rem;border-top:1px solid 
     <small>Supervisione umana · Manutenzione predittiva rete</small>
   </div>
   <div class="kpis" role="region" aria-label="Indicatori di supervisione" aria-live="polite" id="kpis"></div>
-  <div class="tools" role="group" aria-label="Accessibilità e demo">
+  <div class="tools" role="group" aria-label="Operatore, accessibilità e demo">
+    <label for="operatore" class="sr">Identificativo operatore</label>
+    <input id="operatore" list="operatori" value="OP-ROSSI" size="10" title="Identificativo operatore (SUP-… = supervisore)" class="opid">
+    <datalist id="operatori"><option value="OP-ROSSI"><option value="OP-BIANCHI"><option value="SUP-VERDI"></datalist>
     <button id="btnContrast" aria-pressed="false" title="Alto contrasto">Contrasto</button>
     <button id="btnSize" aria-pressed="false" title="Testo grande">A+</button>
-    <button id="btnReset" title="Ricarica la demo con nuove decisioni">Reset demo</button>
+    <button id="btnReset" title="Archivia il log e ricarica la demo">Reset demo</button>
   </div>
 </header>
 
 <section class="estop" role="region" aria-label="Emergency stop (Art. 14(4)(f))">
-  <label for="stopScope">Interruzione · Art. 14(4)(f)</label>
-  <select id="stopScope" aria-label="Ambito dell'interruzione">
-    <option value="GLOBALE">Ambito: GLOBALE</option>
-    <option value="area:Nord">area: Nord</option><option value="area:Centro">area: Centro</option>
-    <option value="area:Sud">area: Sud</option><option value="area:Isole">area: Isole</option>
-    <option value="tipo:trasformatore">tipo: trasformatore</option><option value="tipo:turbina_eolica">tipo: turbina eolica</option>
-    <option value="tipo:linea_AT">tipo: linea AT</option><option value="tipo:cabina_primaria">tipo: cabina primaria</option>
-  </select>
-  <input id="stopMot" type="text" placeholder="Motivazione obbligatoria (min 15 caratteri)" aria-label="Motivazione dello stop" maxlength="200">
+  <label for="stopArea">Interruzione · Art. 14(4)(f)</label>
+  <select id="stopArea" aria-label="Area dell'interruzione"><option value="">Area: tutte</option></select>
+  <select id="stopTipo" aria-label="Tipo di asset dell'interruzione"><option value="">Tipo: tutti</option></select>
+  <input id="stopMot" type="text" placeholder="Motivazione obbligatoria (min 15 caratteri)" aria-label="Motivazione dello stop" maxlength="300">
   <button class="estop-btn" id="btnStop">■ Stop</button>
   <div class="stops" id="stops" aria-live="polite" aria-label="Interruzioni attive"></div>
 </section>
+<div id="offline" class="offline" hidden></div>
 
 <nav class="tabs" role="tablist" aria-label="Sezioni della dashboard">
   <button role="tab" id="tab-coda" aria-controls="p-coda" aria-selected="true">Coda decisioni <span class="n" id="nCoda">0</span></button>
   <button role="tab" id="tab-matrice" aria-controls="p-matrice" aria-selected="false" tabindex="-1">Matrice confidenza × rischio</button>
   <button role="tab" id="tab-bias" aria-controls="p-bias" aria-selected="false" tabindex="-1">Fairness & drift</button>
   <button role="tab" id="tab-audit" aria-controls="p-audit" aria-selected="false" tabindex="-1">Audit trail</button>
-  <button role="tab" id="tab-config" aria-controls="p-config" aria-selected="false" tabindex="-1">Soglie di routing</button>
+  <button role="tab" id="tab-kpi" aria-controls="p-kpi" aria-selected="false" tabindex="-1">Monitoraggio KPI</button>
+  <button role="tab" id="tab-config" aria-controls="p-config" aria-selected="false" tabindex="-1">Soglie & LLM</button>
 </nav>
 
 <main id="main">
@@ -184,19 +217,35 @@ footer{padding:14px 20px;color:var(--mut);font-size:.78rem;border-top:1px solid 
         <div class="phead"><h2>In attesa di giudizio umano</h2><span class="art">ART. 14(4)(d)(e)</span></div>
         <div class="pbody">
           <div class="filters">
-            <label for="fLivello">Livello</label>
-            <select id="fLivello"><option value="">Tutti</option><option>HIC</option><option>HITL</option></select>
+            <span class="flab" id="lblLiv">Livello</span>
+            <span role="group" aria-labelledby="lblLiv" class="chks">
+              <label class="chk"><input type="checkbox" name="fLiv" value="HOTL" checked>HOTL</label>
+              <label class="chk"><input type="checkbox" name="fLiv" value="HITL" checked>HITL</label>
+              <label class="chk"><input type="checkbox" name="fLiv" value="HIC" checked>HIC</label>
+            </span>
+            <button class="btn" id="btnEsc" aria-pressed="false" title="Nasconde dalla vista le decisioni in escalation: restano in coda per il supervisore">Nascondi escalation</button>
             <label for="fArea">Area</label>
-            <select id="fArea"><option value="">Tutte</option><option>Nord</option><option>Centro</option><option>Sud</option><option>Isole</option></select>
-            <label for="operatore">Operatore</label>
-            <input id="operatore" value="OP-014" aria-label="Identificativo operatore" size="8">
+            <select id="fArea"><option value="">Tutte</option></select>
+            <button class="btn" id="btnNuove" title="Simula l'arrivo di nuove raccomandazioni dal modello">+ 5 nuove raccomandazioni</button>
           </div>
           <div id="coda"></div>
+          <div id="bloccate"></div>
         </div>
       </section>
       <section class="panel">
-        <div class="phead"><h2>Decisioni recenti</h2><span class="art">ULTIME 8</span></div>
-        <div class="pbody" id="recenti"></div>
+        <div class="phead"><h2>Decisioni recenti</h2><span class="art">REVISIONATE E HOTL</span></div>
+        <div class="pbody">
+          <div class="filters">
+            <span class="flab" id="lblLivR">Livello</span>
+            <span role="group" aria-labelledby="lblLivR" class="chks">
+              <label class="chk"><input type="checkbox" name="rLiv" value="HOTL" checked>HOTL</label>
+              <label class="chk"><input type="checkbox" name="rLiv" value="HITL" checked>HITL</label>
+              <label class="chk"><input type="checkbox" name="rLiv" value="HIC" checked>HIC</label>
+            </span>
+            <button class="btn" id="btnEscR" aria-pressed="false" title="Nasconde dalla vista le decisioni chiuse dopo un'escalation">Nascondi escalation</button>
+          </div>
+          <div id="recenti"></div>
+        </div>
       </section>
     </div>
   </div>
@@ -212,7 +261,8 @@ footer{padding:14px 20px;color:var(--mut);font-size:.78rem;border-top:1px solid 
           <span><i style="background:var(--hitl)"></i>HITL · approvazione umana</span>
           <span><i style="background:var(--hotl)"></i>HOTL · auto-eseguite, monitorate</span>
         </div>
-        <p class="note">Le soglie sono quelle dichiarate nella scheda "Soglie di routing" e applicate dal codice (KPI A6). L'utenza critica forza HIC a prescindere dalla posizione nella matrice. Passa il mouse o il focus su un punto per i dettagli.</p>
+        <p class="note">Confidenza = max(P, 1−P). Le soglie sono quelle applicate dal backend (incluso l'eventuale margine per il drift). Utenza critica (R1), riduzione carico su utenza alta/critica (R2) e aree sotto osservazione (R5) forzano HIC/HITL a prescindere dalla posizione. Coerenza matrice/codice: KPI A6.</p>
+        <div id="regole"></div>
       </div>
     </section>
   </div>
@@ -224,17 +274,26 @@ footer{padding:14px 20px;color:var(--mut);font-size:.78rem;border-top:1px solid 
         <div class="phead"><h2>Metriche per area geografica</h2><span class="art">ART. 10 · 14(4)(c)</span></div>
         <div class="pbody">
           <table aria-describedby="biasNote">
-            <thead><tr><th scope="col">Area</th><th scope="col">Recall</th><th scope="col">FNR</th><th scope="col">Calibrazione Δ</th><th scope="col">Override umano</th><th scope="col">Stato</th></tr></thead>
+            <thead><tr><th scope="col">Area</th><th scope="col">Recall</th><th scope="col">FNR</th><th scope="col">Calibrazione Δ</th><th scope="col">Guasti registrati / attesi</th><th scope="col">Override umano</th><th scope="col">Routing</th></tr></thead>
             <tbody id="biasBody"></tbody>
           </table>
           <div class="bignote" id="biasAlert"></div>
-          <p class="note" id="biasNote">* Calibrazione calcolata sulle label registrate: se le label storiche sono incomplete, la coerenza col dato storico non è una garanzia. Il tasso di override è calcolato in tempo reale dalle vostre decisioni.</p>
-          <button class="btn" id="btnPromote" style="margin-top:10px" aria-pressed="false">Promuovi tutte le decisioni HOTL del Sud a HITL</button>
+          <p class="note" id="biasNote">Calibrazione calcolata sulle label registrate: se le label storiche sono incomplete, la coerenza col dato storico non è una garanzia. "Attesi" = tasso stimato dal solo profilo tecnico (area esclusa). Override calcolato in tempo reale dalle decisioni della sessione.</p>
+          <div class="filters" style="margin-top:10px">
+            <label for="promArea">Promozione manuale a HITL</label>
+            <select id="promArea"></select>
+            <input id="promMot" placeholder="Motivazione (min 15 caratteri)" size="28">
+            <button class="btn" id="btnPromote">Promuovi / revoca</button>
+          </div>
+          <div id="mitigazione"></div>
         </div>
       </section>
       <section class="panel">
         <div class="phead"><h2>Drift di performance · ultime 12 settimane</h2><span class="art">MONITORAGGIO CONTINUO</span></div>
-        <div class="pbody"><div id="drift"></div><p class="note">Accuratezza settimanale e confidenza media. Soglia di alert: accuratezza sotto 0.80 per due settimane consecutive.</p></div>
+        <div class="pbody"><div id="drift"></div><p class="note" id="driftNote"></p>
+          <h3 class="sub">Per tipo di asset</h3>
+          <table><thead><tr><th scope="col">Tipo</th><th scope="col">Recall</th><th scope="col">FNR</th><th scope="col">Calibrazione Δ</th></tr></thead><tbody id="biasTipo"></tbody></table>
+        </div>
       </section>
     </div>
   </div>
@@ -245,33 +304,75 @@ footer{padding:14px 20px;color:var(--mut);font-size:.78rem;border-top:1px solid 
       <div class="phead"><h2>Audit trail</h2><span class="art">ART. 12</span></div>
       <div class="pbody">
         <div class="filters">
-          <label for="fAudit">Cerca</label><input id="fAudit" placeholder="asset, operatore, evento…" aria-label="Filtra il log">
+          <label for="fAudit">Cerca</label><input id="fAudit" placeholder="asset, operatore, evento, motivazione…" aria-label="Filtra il log">
+          <button class="btn" id="btnCerca">Cerca</button>
           <button class="btn" id="btnVerify">Verifica integrità catena</button>
-          <button class="btn" id="btnExport">Esporta JSON</button>
-          <button class="btn" id="btnTamper" title="Simula una manomissione del log per dimostrare la verifica">Simula manomissione</button>
+          <a class="btn" id="btnExport" href="/api/audit/export" download>Esporta JSONL</a>
+          <button class="btn" id="btnTamper" title="Altera un record su una copia in memoria e mostra che la verifica lo rileva">Simula manomissione</button>
         </div>
         <div class="integ" id="integ"><span class="dot"></span><span>Catena non ancora verificata</span></div>
-        <div style="overflow:auto"><table><thead><tr><th scope="col">Ora</th><th scope="col">Attore</th><th scope="col">Evento</th><th scope="col">Decisione</th><th scope="col">Motivazione</th><th scope="col">Hash</th></tr></thead><tbody id="auditBody"></tbody></table></div>
+        <div class="filters">
+          <label for="fAsset">Ricostruisci asset (T6)</label><input id="fAsset" placeholder="AST-00042" size="12">
+          <button class="btn" id="btnRicostruisci">Ricostruisci</button>
+        </div>
+        <div id="ricostruzione"></div>
+        <div style="overflow:auto"><table><thead><tr><th scope="col">#</th><th scope="col">Ora</th><th scope="col">Attore</th><th scope="col">Evento</th><th scope="col">Decisione</th><th scope="col">Motivazione</th><th scope="col">Hash</th></tr></thead><tbody id="auditBody"></tbody></table></div>
+      </div>
+    </section>
+  </div>
+
+  <!-- KPI -->
+  <div role="tabpanel" id="p-kpi" aria-labelledby="tab-kpi" hidden>
+    <section class="panel">
+      <div class="phead"><h2>Indicatori di qualità della supervisione</h2><span class="art">A · B · C · D</span></div>
+      <div class="pbody">
+        <table><thead><tr><th scope="col">Codice</th><th scope="col">Indicatore</th><th scope="col">Valore</th><th scope="col">Target</th><th scope="col">Stato</th><th scope="col">Dettaglio</th></tr></thead><tbody id="kpiBody"></tbody></table>
+        <p class="note" id="puntoUnico"></p>
+        <div class="grid2" style="margin-top:12px">
+          <div><h3 class="sub">Revisori</h3><table><thead><tr><th>Revisore</th><th>Revisioni</th><th>Respinte</th><th>Override</th><th>Mediana</th><th>Segnali</th></tr></thead><tbody id="revBody"></tbody></table></div>
+          <div><h3 class="sub">Azioni eseguite (punto unico)</h3><table><thead><tr><th>Ora</th><th>Asset</th><th>Azione</th><th>Livello</th><th>Autorizzata da</th></tr></thead><tbody id="esecBody"></tbody></table></div>
+        </div>
       </div>
     </section>
   </div>
 
   <!-- CONFIG -->
   <div role="tabpanel" id="p-config" aria-labelledby="tab-config" hidden>
-    <section class="panel">
-      <div class="phead"><h2>Matrice di routing dichiarata</h2><span class="art">KPI A6 · COERENZA DOCUMENTO / CODICE</span></div>
-      <div class="pbody">
-        <div class="settings">
-          <label>Soglia di confidenza (sotto → HITL) <input type="range" id="thConf" min="0.5" max="0.99" step="0.01" value="0.80"><output id="oConf">0.80</output></label>
-          <label>Soglia di rischio (sopra → HITL) <input type="range" id="thRisk" min="0.2" max="0.95" step="0.01" value="0.60"><output id="oRisk">0.60</output></label>
+    <div class="grid2">
+      <section class="panel">
+        <div class="phead"><h2>Soglie di routing</h2><span class="art">KPI A6 · COERENZA DOCUMENTO / CODICE</span></div>
+        <div class="pbody">
+          <div class="settings">
+            <label>Soglia di confidenza (sotto → HITL) <input type="range" id="thConf" min="0.5" max="0.99" step="0.01" value="0.80"><output id="oConf">0.80</output></label>
+            <label>Soglia di rischio (pari o sopra → HITL) <input type="range" id="thRisk" min="0.3" max="0.95" step="0.01" value="0.60"><output id="oRisk">0.60</output></label>
+            <label>SLA revisione (minuti) <input type="number" id="thSla" min="1" max="240" value="30"></label>
+          </div>
+          <div class="filters" style="margin-top:10px">
+            <input id="sogMot" placeholder="Motivazione della modifica (min 15 caratteri)" size="40">
+            <button class="btn" id="btnSoglie">Applica soglie</button>
+          </div>
+          <p class="note" id="sogNote"></p>
+          <p class="note">Regole: R1 utenza critica → HIC · R2 riduzione carico su utenza alta/critica → HIC · R3 P(guasto) ≥ soglia rischio → HITL · R4 confidenza &lt; soglia → HITL · R5 area sotto osservazione → HITL · R6 dopo uno stop → HITL · R7 azione leggera, rischio basso, confidenza alta → HOTL · R8 altrimenti HITL. Le nuove soglie valgono per le nuove decisioni; ogni modifica è nel log.</p>
         </div>
-        <p class="note" style="margin-top:12px">Regole fisse: utenza critica → HIC sempre; riduzione carico su utenza alta/critica → HIC; azioni leggere (nessuna azione, ispezione di routine) con rischio basso e confidenza alta → HOTL; tutto il resto → HITL. Cambiare una soglia re-instrada le decisioni ancora in coda e viene registrato nell'audit trail.</p>
-      </div>
-    </section>
+      </section>
+      <section class="panel">
+        <div class="phead"><h2>Motore delle spiegazioni</h2><span class="art">KPI B3 · FALLBACK</span></div>
+        <div class="pbody">
+          <div id="llmInfo"></div>
+          <div class="filters" style="margin-top:10px">
+            <button class="btn" data-guasto="chiave_errata">Simula chiave errata</button>
+            <button class="btn" data-guasto="rete_assente">Simula rete assente</button>
+            <button class="btn" data-guasto="">Ripristina LLM</button>
+          </div>
+          <p class="note">Con un guasto attivo le nuove spiegazioni (e "Rigenera" su una card) tornano al template locale, dichiarandolo nella fonte. Nessuna card resta senza spiegazione.</p>
+          <div id="modelloInfo"></div>
+        </div>
+      </section>
+    </div>
   </div>
 </main>
 
-<footer>EnerGuard · demo funzionante del mockup di riferimento per l'hackathon "AI Human Oversight". Nessun dato reale. Ogni sezione risponde a un requisito dell'Art. 14 AI Act.</footer>
+<footer>EnerGuard · dashboard collegata al backend Python (oversight_manager, explainer, bias_detector, audit_logger). Dati sintetici. Ogni sezione risponde a un requisito dell'Art. 14 AI Act.</footer>
 
 <dialog id="dlgStop" aria-labelledby="dlgTitle">
   <h2 id="dlgTitle">Confermare l'interruzione?</h2>
@@ -279,295 +380,387 @@ footer{padding:14px 20px;color:var(--mut);font-size:.78rem;border-top:1px solid 
   <p class="note">Le nuove raccomandazioni nell'ambito verranno bloccate e quelle già in coda diventeranno non eseguibili. L'operazione viene registrata nell'audit trail.</p>
   <div class="row"><button id="dlgNo">Annulla</button><button class="danger" id="dlgYes">Conferma stop</button></div>
 </dialog>
+<dialog id="dlgOff" aria-labelledby="dlgOffTitle">
+  <h2 id="dlgOffTitle">Riattivare?</h2>
+  <p id="dlgOffText"></p>
+  <label class="dlab" for="offMot">Motivazione (min 15 caratteri)</label>
+  <input id="offMot" class="dinp" maxlength="300">
+  <label class="dlab"><input type="checkbox" id="offOk"> Confermo: le decisioni sbloccate tornano in coda con revisione umana obbligatoria (R6)</label>
+  <div class="row"><button id="offNo">Annulla</button><button class="danger" id="offYes">Riattiva</button></div>
+</dialog>
+<dialog id="dlgReset" aria-labelledby="dlgResetTitle">
+  <h2 id="dlgResetTitle">Reset della demo</h2>
+  <p>Il log corrente viene archiviato (non cancellato) e si riparte con una nuova sessione.</p>
+  <label class="dlab" for="resetMot">Motivazione (min 15 caratteri)</label>
+  <input id="resetMot" class="dinp" maxlength="300" value="">
+  <div class="row"><button id="resetNo">Annulla</button><button class="danger" id="resetYes">Archivia e riparti</button></div>
+</dialog>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script>
-/* ===================== DATI DEMO (generazione deterministica) ===================== */
-const AREE=["Nord","Centro","Sud","Isole"], TIPI=["trasformatore","turbina_eolica","linea_AT","cabina_primaria"];
-const AZIONI=["nessuna_azione","ispezione_routine","programma_manutenzione","riduci_carico","ispezione_urgente"];
-const AZ_LBL={nessuna_azione:"nessuna azione",ispezione_routine:"ispezione di routine",programma_manutenzione:"programma manutenzione",riduci_carico:"riduci carico",ispezione_urgente:"ispezione urgente"};
-let seed=7; const rnd=()=>{seed=(seed*1103515245+12345)&0x7fffffff;return seed/0x7fffffff};
-function genera(n){
-  const out=[];
-  for(let i=0;i<n;i++){
-    const area=AREE[Math.floor(rnd()*4)], tipo=TIPI[Math.floor(rnd()*4)];
-    const eta=Math.round(6+rnd()*26+(area==="Sud"||area==="Isole"?6:0));
-    const vib=+(rnd()*9).toFixed(1), temp=Math.round(32+rnd()*24), giorni=Math.round(40+rnd()*400+(area==="Sud"?120:0));
-    const logit=-5.9+0.09*eta+0.45*vib+0.05*(temp-40)+0.004*giorni+(rnd()-0.5);
-    const p=1/(1+Math.exp(-logit)); const prob=+Math.min(0.98,Math.max(0.03,p)).toFixed(2);
-    const conf=+Math.min(0.99,Math.max(0.5,Math.max(prob,1-prob)+rnd()*0.18-0.04)).toFixed(2);
-    const crit=rnd()<0.12?"critica":rnd()<0.35?"alta":"standard";
-    let az=prob>0.75?"ispezione_urgente":prob>0.55?"programma_manutenzione":prob>0.3?"ispezione_routine":"nessuna_azione";
-    if(prob>0.7&&crit!=="standard"&&rnd()<0.5) az="riduci_carico";
-    const fattori=[["vibrazione",vib,vib>6?"molto sopra la norma":vib>4?"sopra la norma":"nella norma",0.45*vib],
-                   ["giorni senza manutenzione",giorni,giorni>300?"intervallo molto lungo":"intervallo regolare",0.004*giorni],
-                   ["temperatura di esercizio",temp+" °C",temp>50?"elevata":"regolare",0.05*(temp-40)],
-                   ["età",eta+" anni",eta>25?"asset anziano":"età media",0.09*eta]].sort((a,b)=>b[3]-a[3]);
-    out.push({id:"AST-"+String(1000+Math.floor(rnd()*9000)).padStart(5,"0"),uid:"d"+i+Math.floor(rnd()*1e6).toString(36),tipo,area,crit,prob,conf,az,fattori,creata:Date.now()-Math.floor(rnd()*60)*60000,stato:"IN_ATTESA",livello:null,revisore:null,motivazione:null,t_apertura:null});
-  }
-  return out;
-}
-
-/* ===================== STATO ===================== */
-const state={decisioni:[],log:[],stops:new Set(),thConf:0.80,thRisk:0.60,promoteSud:false,tampered:false};
+/* EnerGuard - la pagina e' solo una vista: tutte le regole stanno nel backend (app.py). */
 const $=s=>document.querySelector(s);
+const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const pct=x=>x==null?"–":Math.round(x*100)+"%";
+const n2=x=>x==null?"–":(+x).toFixed(2);
+let CFG=null, ST=null, versione=null, offset=0, BIAS=null;
+const drafts={}, errori={}, aperte=new Set(), espanse=new Set(), modAperta=new Set(), apertura=new Set();
 
-/* ===================== AUDIT (catena di hash) ===================== */
-function fnv(str){let h=0x811c9dc5;for(let i=0;i<str.length;i++){h^=str.charCodeAt(i);h=Math.imul(h,0x01000193)>>>0}return h.toString(16).padStart(8,"0")}
-function logEvento(attore,evento,d,extra){
-  const prev=state.log.length?state.log[state.log.length-1].hash:"GENESI";
-  const rec={ts:new Date().toISOString(),attore,evento,prev,dec:d?{id:d.id,uid:d.uid,livello:d.livello,stato:d.stato,azione:d.az,prob:d.prob,conf:d.conf,area:d.area}:null,mot:(d&&d.motivazione)||(extra&&extra.mot)||"",extra:extra||null};
-  rec.hash=fnv(JSON.stringify({...rec,hash:undefined}));
-  state.log.push(rec);
+async function api(path,opt={}){
+  const o={method:opt.method||"GET",headers:{"Content-Type":"application/json"}};
+  if(opt.body!==undefined){o.method=opt.method||"POST";o.body=JSON.stringify(opt.body)}
+  const r=await fetch(path,o);
+  const d=(r.headers.get("content-type")||"").includes("json")?await r.json():await r.text();
+  if(!r.ok) throw new Error((d&&d.errore)||("HTTP "+r.status));
+  return d;
 }
-function verificaCatena(){
-  let prev="GENESI";
-  for(let i=0;i<state.log.length;i++){const r=state.log[i];const {hash,...rest}=r;
-    if(r.prev!==prev||fnv(JSON.stringify({...rest,hash:undefined}))!==hash) return {ok:false,idx:i};
-    prev=hash}
-  return {ok:true,n:state.log.length};
-}
+const op=()=>($("#operatore").value||"").trim();
+const AZ=a=>(CFG&&CFG.etichette_azioni[a])||String(a||"").replace(/_/g," ");
+const TIPO=t=>String(t||"").replace(/_/g," ");
+function toast(msg,err){const t=$("#toast");t.textContent=msg;t.style.borderColor=err?"var(--hic)":"var(--focus)";t.classList.add("show");clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove("show"),err?6000:3800)}
+async function azione(fn,ok){try{const r=await fn();if(ok)toast(typeof ok==="function"?ok(r):ok);await aggiorna(true);return r}catch(e){toast("Errore: "+e.message,true);throw e}}
 
-/* ===================== ROUTING ===================== */
-function route(d){
-  if(d.crit==="critica"||(d.az==="riduci_carico"&&d.crit!=="standard")) return "HIC";
-  if(state.promoteSud&&d.area==="Sud") return "HITL";
-  if(d.prob>=state.thRisk||d.conf<state.thConf) return "HITL";
-  if(d.az==="nessuna_azione"||d.az==="ispezione_routine") return "HOTL";
-  return "HITL";
-}
-function stopApplicabile(d){return state.stops.has("GLOBALE")||state.stops.has("area:"+d.area)||state.stops.has("tipo:"+d.tipo)}
-function sottometti(d){
-  if(stopApplicabile(d)){d.stato="BLOCCATA_STOP";logEvento("SISTEMA","blocco_emergency_stop",d);return}
-  d.livello=route(d);
-  if(d.livello==="HOTL"){d.stato="AUTO_ESEGUITA";esegui(d);logEvento("SISTEMA","auto_esecuzione_HOTL",d)}
-  else{d.stato="IN_ATTESA";logEvento("SISTEMA","in_coda_"+d.livello,d)}
-}
-function esegui(d){ // UNICO punto di esecuzione
-  if(!["APPROVATA","MODIFICATA","AUTO_ESEGUITA"].includes(d.stato)) throw new Error("Esecuzione con stato non valido: "+d.stato);
-  if(d.livello==="HIC"&&d.stato==="AUTO_ESEGUITA") throw new Error("Una decisione HIC non può essere auto-eseguita");
-  d.eseguita=true;
-}
-function revisiona(d,esito,mot,azMod){
-  if(d.stato!=="IN_ATTESA") throw new Error("Decisione già chiusa");
-  if(!mot||mot.trim().length<15) throw new Error("Motivazione obbligatoria (min 15 caratteri)");
-  d.stato=esito;d.revisore=$("#operatore").value||"OP-?";d.motivazione=mot.trim();d.t_chiusura=Date.now();
-  if(azMod) d.az=azMod;
-  if(esito==="APPROVATA"||esito==="MODIFICATA") esegui(d);
-  logEvento(d.revisore,"revisione_"+esito,d);
+/* ===================== POLLING ===================== */
+async function aggiorna(forza){
+  try{
+    const s=await api("/api/stato"+(versione!=null&&!forza?"?versione="+versione:""));
+    $("#offline").hidden=true;
+    offset=Date.parse(s.ora_server)-Date.now();
+    if(s.invariato){ST.integrita=s.integrita;renderKPI();return}
+    ST=s;versione=s.versione;renderAll();
+  }catch(e){const o=$("#offline");o.hidden=false;o.textContent="Backend non raggiungibile ("+e.message+"). Avviare: python dashboard/backend/app.py e aprire http://127.0.0.1:8000"}
 }
 
-/* ===================== KPI ===================== */
-function kpi(){
-  const chiuse=state.decisioni.filter(d=>["APPROVATA","MODIFICATA","RIFIUTATA","ESCALATION"].includes(d.stato));
-  const over=chiuse.filter(d=>d.stato==="RIFIUTATA"||d.stato==="MODIFICATA");
-  const attesa=state.decisioni.filter(d=>d.stato==="IN_ATTESA");
-  const tempi=chiuse.filter(d=>d.t_apertura&&d.t_chiusura).map(d=>(d.t_chiusura-d.t_apertura)/1000).sort((a,b)=>a-b);
-  const med=tempi.length?tempi[Math.floor(tempi.length/2)]:null;
-  const rubber=chiuse.length?chiuse.filter(d=>d.motivazione&&d.motivazione.length<30).length/chiuse.length:0;
-  const improprie=state.decisioni.filter(d=>d.livello!=="HOTL"&&d.eseguita&&!d.revisore).length;
-  const v=verificaCatena();
-  return {attesa:attesa.length,override:chiuse.length?over.length/chiuse.length:null,med,rubber,improprie,chiuse:chiuse.length,integra:v.ok,hotl:state.decisioni.filter(d=>d.stato==="AUTO_ESEGUITA").length};
-}
+/* ===================== KPI TOPBAR ===================== */
 function renderKPI(){
-  const k=kpi();
-  const f=(x)=>x==null?"–":Math.round(x*100)+"%";
-  const ms=k.med==null?"–":(k.med<60?Math.round(k.med)+"s":Math.floor(k.med/60)+":"+String(Math.round(k.med%60)).padStart(2,"0"));
+  if(!ST||!ST.kpi) return;
+  const k=ST.kpi, I=Object.fromEntries(k.indicatori.map(i=>[i.codice,i])), integ=ST.integrita;
+  const cls=i=>i.stato==="ok"?"okc":i.stato==="critico"||i.stato==="allerta"?"bad":i.stato==="n/d"||i.stato==="info"?"":"warn";
+  const llm=ST.llm, motore=llm.configurato?(llm.guasto_simulato?"GUASTO SIMULATO":"LLM"):"Template";
   $("#kpis").innerHTML=`
-    <div class="kpi"><b class="${k.attesa>8?"warn":""}">${k.attesa}</b><span>In attesa (A5)</span></div>
-    <div class="kpi"><b>${ms}</b><span>Mediana revisione (A3)</span></div>
-    <div class="kpi"><b class="${k.override!=null&&(k.override<0.05||k.override>0.4)?"warn":""}">${f(k.override)}</b><span>Override (A2)</span></div>
-    <div class="kpi"><b class="${k.rubber>0.1?"warn":"okc"}">${f(k.rubber)}</b><span>Rubber-stamping (A4)</span></div>
-    <div class="kpi"><b class="${k.improprie?"bad":"okc"}">${k.improprie}</b><span>Auto-esec. improprie (A1)</span></div>
-    <div class="kpi"><b class="okc">${k.hotl}</b><span>HOTL auto-eseguite</span></div>
-    <div class="kpi"><b class="${k.integra?"okc":"bad"}">${k.integra?"OK":"KO"}</b><span>Integrità audit (D2)</span></div>`;
-  $("#nCoda").textContent=k.attesa;
+    <div class="kpi"><b class="${k.in_attesa>8?"warn":""}">${k.in_attesa}${k.in_escalation?` <small>+${k.in_escalation} esc.</small>`:""}</b><span>In coda umana</span></div>
+    <div class="kpi"><b class="${cls(I.A1)}">${pct(I.A1.valore)}</b><span>Auto-esec. improprie (A1)</span></div>
+    <div class="kpi"><b class="${cls(I.A2)}">${pct(I.A2.valore)}</b><span>Override (A2)</span></div>
+    <div class="kpi"><b class="${cls(I.A3)}">${I.A3.valore==null?"–":I.A3.valore+" s"}</b><span>Mediana revisione (A3)</span></div>
+    <div class="kpi"><b class="${cls(I.A4)}">${pct(I.A4.valore)}</b><span>Rubber-stamping (A4)</span></div>
+    <div class="kpi"><b class="${cls(I.A6)}">${pct(I.A6.valore)}</b><span>Routing coerente (A6)</span></div>
+    <div class="kpi"><b class="${integ.integra?"okc":"bad"}">${integ.integra?"OK":"KO"}</b><span>Integrità audit (D2)</span></div>
+    <div class="kpi"><b class="${llm.guasto_simulato?"warn":llm.configurato?"okc":""}">${motore}${llm.in_corso?` <small>(${llm.in_corso}…)</small>`:""}</b><span>Spiegazioni · fallback ${pct(llm.tasso_fallback)}</span></div>`;
+  $("#nCoda").textContent=k.in_attesa+k.in_escalation;
+  document.title=(ST.stop.length?"⛔ STOP ATTIVO · ":"")+"EnerGuard · Supervisione umana";
 }
 
-/* ===================== RENDER CODA ===================== */
-function spiegazione(d){
-  const [f1,f2,f3]=d.fattori;
-  return `<b>Perché il sistema lo raccomanda:</b> ${f1[0]} a ${f1[1]}, ${f1[2]}: è il fattore che pesa di più. Contribuiscono ${f2[0]} (${f2[1]}, ${f2[2]}) e ${f3[0]} (${f3[1]}, ${f3[2]}).`;
+/* ===================== CODA ===================== */
+function slaTesto(d){
+  if(d.stato==="ESCALATION") return `<b style="color:var(--hic)">ESCALATION</b> (${esc(d.escalation_sla?"SLA scaduto":"richiesta da "+d.escalation_da)})`;
+  if(!d.scadenza_sla) return "";
+  const m=Math.round((Date.parse(d.scadenza_sla)-(Date.now()+offset))/60000);
+  return m<=0?"SLA in scadenza":`SLA ${m} min`;
 }
-function incertezza(d){
-  if(d.livello==="HIC") return `⚠ ${d.az==="riduci_carico"?"Ridurre il carico impatterebbe un'utenza "+d.crit:"L'utenza servita è "+d.crit}: il sistema NON può agire da solo. La decisione è interamente sua.`;
-  if(d.conf<state.thConf) return `⚠ Il modello è incerto su questo caso (confidenza ${d.conf}): i fattori non concordano tra loro. Valutare un sopralluogo prima di programmare.`;
-  return `ℹ Confidenza ${d.conf}, rischio ${d.prob}: sopra la soglia di rischio dichiarata, serve la sua approvazione.`;
+function fonteTesto(d){
+  const s=d.spiegazione_operativa; if(!s) return "";
+  const t=s.tipo_fonte==="llm"?"LLM ("+esc(s.fonte.slice(4))+")":s.tipo_fonte==="fallback"?"template locale – FALLBACK: "+esc(s.fonte.replace(/^template\(fallback:\s*/,"").replace(/\)$/,"")):"template locale";
+  return `Fonte spiegazione: <b>${t}</b>${d.llm==="in_corso"?" · spiegazione LLM in arrivo…":""}`;
 }
+function dettagliHTML(d){
+  const s=d.spiegazione_operativa||{fattori:[]}, cf=d.controfattuale, cs=d.casi_simili;
+  return `<details data-det="${d.id}" ${aperte.has(d.id)?"open":""}><summary>Spiegazione completa</summary>
+    <table class="mini"><thead><tr><th>Fattore</th><th>Valore</th><th>Tipico flotta</th><th>Giudizio</th><th>Effetto</th></tr></thead><tbody>
+    ${s.fattori.map(f=>`<tr><td>${esc(f.etichetta)}</td><td class="mono">${esc(f.valore_testo)}</td><td class="mono">${esc(f.valori_tipici)}</td><td>${esc(f.giudizio)}</td><td>${esc(f.direzione)}</td></tr>`).join("")}</tbody></table>
+    ${cf?`<p><b>Cosa cambierebbe la raccomandazione:</b> ${esc(cf.testo)}</p>`:""}
+    ${cs?`<p><b>Casi simili:</b> ${esc(cs.testo)}${cs.avvertenza?` <span class="warnt">${esc(cs.avvertenza)}</span>`:""}</p>`:""}
+    <p class="note">Instradamento: ${esc(d.regola)} – ${esc(d.motivo_routing)} · Fattori: ${esc(d.metodo_fattori)} · ID ${esc(d.id)}</p>
+    <button class="btn" data-rigenera="${d.id}">Rigenera spiegazione</button></details>`;
+}
+function cardHTML(d){
+  const lv=d.livello.toLowerCase(), s=d.spiegazione_operativa||{}, sup=d.richiede_supervisore;
+  const mot=drafts[d.id]||"", ok=mot.trim().length>=CFG.min_motivazione;
+  const aperta=espanse.has(d.id)||!!errori[d.id];
+  return `<article class="card ${lv} ${aperta?"open":""}" data-card="${d.id}" aria-labelledby="h-${d.id}">
+    <div class="chead" data-toggle="${d.id}" role="button" tabindex="0" aria-expanded="${aperta}" title="Clicca per espandere/comprimere"><span class="chev" aria-hidden="true">▸</span><div><span class="cid" id="h-${d.id}">${esc(d.asset_id)}</span> <span class="tag ${lv}">${d.livello==="HIC"?"HIC · veto umano":"HITL · serve approvazione"}</span> <span class="mono rg">${esc(d.regola)}</span>
+      <div class="meta">${esc(TIPO(d.tipo_asset))} · ${esc(d.area_geografica)} · Utenza <b>${esc(d.criticita_utenza)}</b> · ${slaTesto(d)}</div></div></div>
+          <div class="cbody">
+          <div class="nums"><div>P(guasto 30gg) <b style="color:${d.prob_guasto>=ST.soglie.soglia_rischio?"var(--hic)":"var(--txt)"}">${pct(d.prob_guasto)}</b></div>
+      <div>Confidenza <b>${n2(d.confidenza)} · ${esc(d.descrizione_confidenza)}</b></div>
+      <div>Azione proposta <b>${esc(AZ(d.azione_proposta))}</b></div></div>
+    <div class="exp"><b>Perché:</b> ${esc(s.testo)}<span class="unc">${esc(s.incertezza)}</span>
+      <span class="src">${fonteTesto(d)}</span></div>
+    ${dettagliHTML(d)}
+    <div class="acts">
+      <div class="mot"><label for="m-${d.id}" class="sr">Motivazione</label>
+        <textarea id="m-${d.id}" data-id="${d.id}" placeholder="Motivazione obbligatoria (min ${CFG.min_motivazione} caratteri): cosa hai verificato su questa decisione…">${esc(mot)}</textarea>
+        <small id="c-${d.id}" class="${ok?"":"ko"}">${mot.trim().length} / ${CFG.min_motivazione} caratteri${ok?" · motivazione valida":" · i pulsanti si sbloccano con la motivazione"}</small>
+        ${sup?`<small class="supn">Chiusura riservata a un supervisore (ID ${esc(CFG.prefisso_supervisore)}…): un operatore può solo mettere in escalation.</small>`:""}
+        <div class="modsel ${modAperta.has(d.id)?"show":""}" id="ms-${d.id}"><label for="s-${d.id}" style="font-size:.85rem;color:var(--mut)">Nuova azione</label>
+          <select id="s-${d.id}">${CFG.azioni.filter(a=>a!==d.azione_proposta).map(a=>`<option value="${a}">${esc(AZ(a))}</option>`).join("")}</select></div>
+        <div class="err" id="e-${d.id}" role="alert">${esc(errori[d.id]||"")}</div></div>
+      <div class="btns" role="group" aria-label="Azioni sulla decisione ${esc(d.asset_id)}">
+        <button class="ok" ${ok?"":"disabled"} data-act="APPROVATA" data-id="${d.id}">Approva</button>
+        <button ${ok?"":"disabled"} data-act="MODIFICATA" data-id="${d.id}">${modAperta.has(d.id)?"Conferma modifica e approva":"Modifica azione e approva"}</button>
+        <button class="no" ${ok?"":"disabled"} data-act="RIFIUTATA" data-id="${d.id}">Rifiuta</button>
+        ${d.stato==="ESCALATION"?"":`<button ${ok?"":"disabled"} data-act="ESCALATION" data-id="${d.id}">Escalation</button>`}
+      </div></div></div></article>`;
+}
+const livelliScelti=(nome="fLiv")=>new Set([...document.querySelectorAll(`input[name="${nome}"]:checked`)].map(x=>x.value));
+const escNascoste=(id="#btnEsc")=>$(id).getAttribute("aria-pressed")==="true";
 function renderCoda(){
-  const fl=$("#fLivello").value, fa=$("#fArea").value;
-  const list=state.decisioni.filter(d=>d.stato==="IN_ATTESA"&&(!fl||d.livello===fl)&&(!fa||d.area===fa))
-    .sort((a,b)=>(b.livello==="HIC")-(a.livello==="HIC")||b.prob-a.prob);
-  const box=$("#coda");
-  if(!list.length){box.innerHTML=`<div class="empty">Nessuna decisione in attesa con questi filtri.</div>`;return}
-  box.innerHTML=list.map(d=>{
-    d.t_apertura=d.t_apertura||d.creata;
-    const min=Math.max(1,Math.round((Date.now()-d.creata)/60000));
-    return `<article class="card ${d.livello.toLowerCase()}" aria-labelledby="h-${d.uid}">
-      <div class="chead"><div><span class="cid" id="h-${d.uid}">${d.id}</span> <span class="tag ${d.livello.toLowerCase()}">${d.livello==="HIC"?"HIC · veto umano":"HITL · serve approvazione"}</span>
-        <div class="meta">${d.tipo.replace("_"," ")} · ${d.area} · Utenza <b>${d.crit}</b> · in coda da ${min} min</div></div>
-        <span class="mono" style="color:var(--mut);font-size:.75rem">#${d.uid}</span></div>
-      <div class="nums"><div>P(guasto 30gg) <b style="color:${d.prob>=state.thRisk?"var(--hic)":"var(--txt)"}">${d.prob}</b></div>
-        <div>Confidenza <b style="color:${d.conf<state.thConf?"var(--hitl)":"var(--txt)"}">${d.conf}${d.conf<state.thConf?" · bassa":""}</b></div>
-        <div>Azione proposta <b>${AZ_LBL[d.az]}</b></div></div>
-      <div class="exp">${spiegazione(d)}<span class="unc">${incertezza(d)}</span></div>
-      <div class="acts">
-        <div class="mot"><label for="m-${d.uid}" class="sr">Motivazione</label>
-          <textarea id="m-${d.uid}" placeholder="Motivazione obbligatoria (min 15 caratteri)…" data-uid="${d.uid}"></textarea>
-          <small id="c-${d.uid}" class="ko">0 / 15 caratteri · i pulsanti si sbloccano con la motivazione</small>
-          <div class="modsel" id="ms-${d.uid}"><label for="s-${d.uid}" style="font-size:.85rem;color:var(--mut)">Nuova azione</label>
-            <select id="s-${d.uid}">${AZIONI.map(a=>`<option value="${a}" ${a===d.az?"selected":""}>${AZ_LBL[a]}</option>`).join("")}</select></div></div>
-        <div class="btns" role="group" aria-label="Azioni sulla decisione ${d.id}">
-          <button class="ok" disabled data-act="APPROVATA" data-uid="${d.uid}">Approva</button>
-          <button disabled data-act="MODIFICATA" data-uid="${d.uid}">Modifica azione e approva</button>
-          <button class="no" disabled data-act="RIFIUTATA" data-uid="${d.uid}">Rifiuta</button>
-          <button disabled data-act="ESCALATION" data-uid="${d.uid}">Escalation</button>
-        </div></div></article>`}).join("");
+  const lv=livelliScelti(), fa=$("#fArea").value, prio={HIC:2,HITL:1}, nascEsc=escNascoste();
+  const inVista=ST.decisioni.filter(d=>(d.stato==="IN_ATTESA"||d.stato==="ESCALATION")&&lv.has(d.livello)&&(!fa||d.area_geografica===fa));
+  const nEsc=inVista.filter(d=>d.stato==="ESCALATION").length;
+  const list=inVista.filter(d=>!(nascEsc&&d.stato==="ESCALATION"))
+    .sort((a,b)=>(b.stato==="ESCALATION")-(a.stato==="ESCALATION")||prio[b.livello]-prio[a.livello]||b.prob_guasto-a.prob_guasto);
+  $("#btnEsc").textContent=nascEsc?`Mostra escalation (${nEsc})`:"Nascondi escalation";
+  const act=document.activeElement, focusId=act&&act.id, sel=act&&act.selectionStart;
+  const avviso=nascEsc&&nEsc?`<div class="note warnt" role="status">${nEsc} ${nEsc===1?"decisione in escalation nascosta":"decisioni in escalation nascoste"} dalla vista: restano in coda e le chiude un supervisore.</div>`:"";
+  $("#coda").innerHTML=avviso+(list.length?list.map(cardHTML).join(""):`<div class="empty">Nessuna decisione in attesa con questi filtri.</div>`);
+  if(focusId&&document.getElementById(focusId)&&act!==document.getElementById(focusId)){const el=document.getElementById(focusId);el.focus();if(sel!=null&&el.setSelectionRange)el.setSelectionRange(sel,sel)}
+  const bl=ST.decisioni.filter(d=>d.stato==="BLOCCATA_STOP");
+  $("#bloccate").innerHTML=bl.length?`<h3 class="sub">Bloccate da emergency stop (${bl.length}) – non eseguibili</h3>`+bl.map(d=>`<div class="rowb"><span class="mono"><b>${esc(d.asset_id)}</b></span> · ${esc(d.livello)} · ${esc(TIPO(d.tipo_asset))} · ${esc(d.area_geografica)} · ${esc(AZ(d.azione_proposta))} <span class="pill bad">STOP ${esc(d.bloccata_da)}</span></div>`).join(""):"";
 }
 function renderRecenti(){
-  const rec=state.decisioni.filter(d=>d.revisore).sort((a,b)=>b.t_chiusura-a.t_chiusura).slice(0,8);
-  $("#recenti").innerHTML=rec.length?rec.map(d=>`<div style="padding:8px 0;border-bottom:1px solid var(--line);font-size:.88rem">
-    <span class="mono"><b>${d.id}</b></span> · <span class="pill ${d.stato==="RIFIUTATA"?"bad":d.stato==="MODIFICATA"||d.stato==="ESCALATION"?"warn":"ok"}">${d.stato}</span> · ${AZ_LBL[d.az]} · ${d.revisore}<br><span style="color:var(--mut)">«${d.motivazione}»</span></div>`).join("")
-    :`<div class="empty">Nessuna decisione ancora revisionata. Approva, modifica o rifiuta una card per vedere qui l'esito e i KPI aggiornarsi.</div>`;
+  const lv=livelliScelti("rLiv"), nascEsc=escNascoste("#btnEscR");
+  const chiuse=ST.decisioni.filter(d=>(d.chiusa_il||d.stato==="AUTO_ESEGUITA")&&lv.has(d.livello));
+  const nEsc=chiuse.filter(d=>d.escalation_da).length;
+  const rec=chiuse.filter(d=>!(nascEsc&&d.escalation_da)).sort((a,b)=>(b.chiusa_il||b.eseguita_il||"").localeCompare(a.chiusa_il||a.eseguita_il||"")).slice(0,15);
+  $("#btnEscR").textContent=nascEsc?`Mostra escalation (${nEsc})`:"Nascondi escalation";
+  const avviso=nascEsc&&nEsc?`<div class="note warnt" role="status">${nEsc} ${nEsc===1?"decisione chiusa dopo escalation nascosta":"decisioni chiuse dopo escalation nascoste"} dalla vista.</div>`:"";
+  $("#recenti").innerHTML=avviso+(rec.length?rec.map(d=>{
+    const cl=d.stato==="RIFIUTATA"?"bad":d.stato==="MODIFICATA"?"warn":"ok";
+    const hotl=d.stato==="AUTO_ESEGUITA";
+    return `<div class="rowb"><span class="mono"><b>${esc(d.asset_id)}</b></span> · <span class="pill ${cl}">${esc(hotl?"HOTL · AUTO-ESEGUITA":d.livello+" · "+d.stato)}</span>    ${d.escalation_da?` <span class="pill warn" title="${esc(d.escalation_sla?"SLA scaduto":"richiesta da "+d.escalation_da)}">via escalation</span>`:""} · ${esc(AZ(d.azione_proposta))}${d.azione_originale&&d.azione_originale!==d.azione_proposta?` <span class="note">(AI: ${esc(AZ(d.azione_originale))})</span>`:""} · ${esc(d.revisore||"SISTEMA")} · ${d.eseguita?"eseguita":"<b>non eseguita</b>"}
+      <br><span style="color:var(--mut)">${hotl?esc(d.motivo_routing):"«"+esc(d.motivazione)+"»"}</span>
+      ${hotl?(d.contestazione?`<br><span class="warnt">Contestata da ${esc(d.contestazione.operatore)}: «${esc(d.contestazione.motivazione)}»</span>`:`<div class="filters" style="margin:6px 0 0"><input data-cmot="${d.id}" placeholder="Contesta ex post: motivazione" size="26" value="${esc(drafts["c"+d.id]||"")}"><button class="btn" data-contesta="${d.id}">Contesta</button></div>`):""}</div>`}).join("")
+    :`<div class="empty">${lv.size<3||nascEsc?"Nessuna decisione chiusa con questi filtri.":"Nessuna decisione ancora chiusa."}</div>`);
+}
+
+/* ===================== STOP ===================== */
+function ambitoScelto(){const a=$("#stopArea").value,t=$("#stopTipo").value;return a&&t?`area:${a}+tipo:${t}`:a?`area:${a}`:t?`tipo:${t}`:"GLOBALE"}
+function renderStops(){
+  $("#stops").innerHTML=ST.stop.map(s=>`<span class="chip" title="${esc(s.motivazione)}">STOP ${esc(s.ambito)} · ${esc(s.operatore)} · ${s.bloccate} bloccate<button data-stop="${esc(s.ambito)}" aria-label="Riattiva ${esc(s.ambito)}">Riattiva…</button></span>`).join("")||`<span class="note">Nessuna interruzione attiva</span>`;
 }
 
 /* ===================== MATRICE ===================== */
 function renderMatrix(){
-  const W=760,H=380,L=60,T=20,R=20,B=48;
+  const W=760,H=380,L=60,T=20,R=20,B=48, so=ST.soglie, thC=so.soglia_confidenza_effettiva, thR=so.soglia_rischio;
   const x=c=>L+(c-0.5)/(0.5)*(W-L-R), y=p=>T+(1-p)*(H-T-B);
-  const xc=x(state.thConf), yr=y(state.thRisk);
-  const pts=state.decisioni.filter(d=>d.stato!=="BLOCCATA_STOP").map(d=>`<circle cx="${x(d.conf).toFixed(1)}" cy="${y(d.prob).toFixed(1)}" r="${d.stato==="IN_ATTESA"?6:4}" fill="var(--${d.livello.toLowerCase()})" stroke="${d.stato==="IN_ATTESA"?"#fff":"none"}" stroke-width="1.2" tabindex="0" role="img" aria-label="${d.id}, ${d.livello}, rischio ${d.prob}, confidenza ${d.conf}, stato ${d.stato}"><title>${d.id} · ${d.livello} · rischio ${d.prob} · conf ${d.conf} · ${d.stato}</title></circle>`).join("");
+  const xc=x(thC), yr=y(thR);
+  const pts=ST.decisioni.filter(d=>d.livello).map(d=>{const q=d.stato==="IN_ATTESA"||d.stato==="ESCALATION";
+    return `<circle cx="${x(d.confidenza).toFixed(1)}" cy="${y(d.prob_guasto).toFixed(1)}" r="${q?6:4}" fill="var(--${d.livello.toLowerCase()})" stroke="${q?"#fff":"none"}" stroke-width="1.2" opacity="${d.stato==="BLOCCATA_STOP"?.35:1}" tabindex="0" role="img" aria-label="${esc(d.asset_id)}, ${d.livello}, rischio ${n2(d.prob_guasto)}, confidenza ${n2(d.confidenza)}, ${d.regola}, ${d.stato}"><title>${esc(d.asset_id)} · ${d.livello} (${d.regola}) · rischio ${n2(d.prob_guasto)} · conf ${n2(d.confidenza)} · ${d.stato}</title></circle>`}).join("");
   $("#matrix").innerHTML=`<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Matrice confidenza-rischio con zone di routing">
     <rect x="${L}" y="${T}" width="${W-L-R}" height="${yr-T}" fill="var(--hic-d)" opacity=".85"/>
     <rect x="${L}" y="${yr}" width="${xc-L}" height="${H-B-yr}" fill="var(--hitl-d)" opacity=".85"/>
     <rect x="${xc}" y="${yr}" width="${W-R-xc}" height="${H-B-yr}" fill="var(--hotl-d)" opacity=".9"/>
-    <text x="${L+10}" y="${T+20}" fill="var(--hic)" font-size="14" font-weight="700">HIC/HITL — rischio alto: serve l'umano</text>
-    <text x="${L+10}" y="${yr+22}" fill="var(--hitl)" font-size="14" font-weight="700">HITL — confidenza bassa</text>
-    <text x="${xc+10}" y="${H-B-12}" fill="var(--hotl)" font-size="14" font-weight="700">HOTL — auto + monitoraggio</text>
+    <text x="${L+10}" y="${T+20}" fill="var(--hic)" font-size="14" font-weight="700">Rischio alto (R3): serve l'umano</text>
+    <text x="${L+10}" y="${yr+20}" fill="var(--hitl)" font-size="14" font-weight="700">Confidenza bassa (R4): HITL</text>
+    <text x="${xc+10}" y="${H-B-12}" fill="var(--hotl)" font-size="14" font-weight="700">HOTL se azione leggera (R7)</text>
     <line x1="${L}" y1="${H-B}" x2="${W-R}" y2="${H-B}" stroke="var(--line)"/><line x1="${L}" y1="${T}" x2="${L}" y2="${H-B}" stroke="var(--line)"/>
     <line x1="${xc}" y1="${yr}" x2="${xc}" y2="${H-B}" stroke="var(--mut)" stroke-dasharray="5 4"/><line x1="${L}" y1="${yr}" x2="${W-R}" y2="${yr}" stroke="var(--mut)" stroke-dasharray="5 4"/>
-    <text x="${xc+4}" y="${H-B-2}" fill="var(--mut)" font-size="11">conf ${state.thConf.toFixed(2)}</text>
-    <text x="${W-R-70}" y="${yr-5}" fill="var(--mut)" font-size="11">rischio ${state.thRisk.toFixed(2)}</text>
+    <text x="${xc+4}" y="${yr+14}" fill="var(--mut)" font-size="11">conf ${thC.toFixed(2)}${so.margine_drift?" (drift +"+so.margine_drift+")":""}</text>
+    <text x="${W-R-80}" y="${yr-5}" fill="var(--mut)" font-size="11">rischio ${thR.toFixed(2)}</text>
     <text x="${(W+L)/2}" y="${H-12}" fill="var(--mut)" font-size="12" text-anchor="middle">Confidenza del modello →</text>
-    <text x="16" y="${(H-B+T)/2}" fill="var(--mut)" font-size="12" text-anchor="middle" transform="rotate(-90 16 ${(H-B+T)/2})">Rischio della decisione →</text>
+    <text x="16" y="${(H-B+T)/2}" fill="var(--mut)" font-size="12" text-anchor="middle" transform="rotate(-90 16 ${(H-B+T)/2})">P(guasto) →</text>
     ${pts}</svg>`;
+  const reg=ST.kpi.distribuzione_regole;
+  $("#regole").innerHTML=`<p class="note">Decisioni per regola: ${Object.keys(reg).sort().map(r=>`<b>${r}</b> ${reg[r]}`).join(" · ")} · livelli: ${Object.entries(ST.kpi.distribuzione_livelli).map(([k,v])=>`${k} ${v}`).join(" · ")}</p>`;
 }
 
 /* ===================== BIAS & DRIFT ===================== */
-const BIAS={Isole:{recall:0.79,fnr:0.21,cal:"+0.01"},Sud:{recall:0.47,fnr:0.53,cal:"+0.02*"},Centro:{recall:0.38,fnr:0.62,cal:"-0.01"},Nord:{recall:0.29,fnr:0.71,cal:"-0.03"}};
+async function caricaBias(){try{BIAS=await api("/api/bias");renderBias()}catch(e){toast("Errore bias: "+e.message,true)}}
 function renderBias(){
-  const best=Math.max(...Object.values(BIAS).map(b=>b.recall));
-  const rows=Object.entries(BIAS).map(([a,b])=>{
-    const chiuse=state.decisioni.filter(d=>d.area===a&&d.revisore);
-    const ov=chiuse.filter(d=>d.stato==="RIFIUTATA"||d.stato==="MODIFICATA").length;
-    const ovs=chiuse.length?Math.round(ov/chiuse.length*100)+"% ("+chiuse.length+")":"–";
-    const gap=best-b.recall;
-    const st=a==="Sud"?`<span class="pill warn">Indagare</span>`:gap>0.4?`<span class="pill bad">Gap ${gap.toFixed(2)}</span>`:gap>0.15?`<span class="pill warn">Gap recall</span>`:`<span class="pill ok">OK</span>`;
-    return `<tr class="${gap>0.4?"alert":""}"><th scope="row" style="text-transform:none;font-size:.9rem;color:var(--txt)">${a}</th><td>${b.recall.toFixed(2)}</td><td>${b.fnr.toFixed(2)}</td><td>${b.cal}</td><td>${ovs}</td><td>${st}</td></tr>`}).join("");
-  $("#biasBody").innerHTML=rows;
-  $("#biasAlert").innerHTML=`<b>Allerta attiva:</b> i profili di degrado di Sud e Isole sono simili a fronte di tassi di guasto storici molto diversi. Sospetta sotto-segnalazione storica dei guasti (label bias). ${state.promoteSud?"<b>Mitigazione in corso:</b> tutte le decisioni HOTL dell'area Sud sono promosse a HITL finché l'indagine non si chiude.":"<b>Mitigazione suggerita:</b> promuovere le decisioni HOTL del Sud a HITL (pulsante sotto)."}`;
-  $("#btnPromote").setAttribute("aria-pressed",state.promoteSud);
-  $("#btnPromote").textContent=state.promoteSud?"Mitigazione attiva: HOTL del Sud → HITL (clicca per revocare)":"Promuovi tutte le decisioni HOTL del Sud a HITL";
-  // drift
-  const acc=[0.86,0.87,0.85,0.86,0.84,0.85,0.83,0.84,0.82,0.83,0.81,0.84], conf=[0.88,0.88,0.87,0.87,0.86,0.86,0.85,0.85,0.84,0.83,0.83,0.84];
-  const W=700,H=220,L=44,B=30,T=14,R=10; const x=i=>L+i*(W-L-R)/11, y=v=>T+(1-(v-0.7)/0.3)*(H-T-B);
+  if(!BIAS) return;
+  const rep=BIAS.report, dim=rep.dimensioni.area_geografica, lb=(rep.label_bias||{}).per_gruppo||[];
+  const ov=Object.fromEntries(BIAS.override_area.map(o=>[o.area,o])), allerte=dim.allerte;
+  $("#biasBody").innerHTML=dim.metriche.map(m=>{
+    const a=m.area_geografica, l=lb.find(x=>x.area_geografica===a)||{}, o=ov[a], p=ST.promozioni[a]||{};
+    const al=allerte.filter(x=>x.gruppo===a).map(x=>x.codice);
+    return `<tr class="${l.sospetto?"alert":""}"><th scope="row" style="text-transform:none;font-size:.9rem;color:var(--txt)">${esc(a)} ${al.map(c=>`<span class="pill warn">${c}</span>`).join(" ")}</th>
+      <td>${n2(m.recall)}</td><td>${n2(m.fnr)}</td><td>${m.gap_calibrazione==null?"–":(m.gap_calibrazione>0?"+":"")+n2(m.gap_calibrazione)}</td>
+      <td>${pct(l.tasso_registrato)} / ${pct(l.tasso_atteso_da_profilo)} ${l.sospetto?'<span class="pill bad">sotto-registrati?</span>':""}</td>
+      <td>${o&&o.tasso_override!=null?pct(o.tasso_override)+" ("+o.revisionate+")":"–"}</td>
+      <td>${p.promossa?`<span class="pill warn" title="${esc(p.motivi.join("; "))}">HITL forzato (R5)</span>`:'<span class="pill ok">matrice standard</span>'}</td></tr>`}).join("");
+  const cf=rep.confronto_sud_isole||{}, sosp=BIAS.aree_sospette;
+  $("#biasAlert").innerHTML=`<b>Cosa abbiamo scoperto (T5):</b> ${esc(cf.testo||"")} Il profilo tecnico stima per ${esc(sosp.join(", ")||"–")} un tasso di guasto più alto di quello registrato: ipotesi principale <b>sotto-segnalazione storica dei guasti</b> (label bias), che il modello ha imparato e rende meno sensibile al rischio in quell'area.
+    <br><b>Mitigazioni attive:</b> le decisioni di ${esc(sosp.join(", "))} sono promosse a HITL (R5) e mostrano un avviso sul rischio sottostimato; allerta di calibrazione (C2); soglia di confidenza più severa per il drift (C4). <b>Non risolto:</b> nessuna rietichettatura né riaddestramento – serve un audit sul campo dei guasti al Sud.`;
+  const mi=BIAS.mitigazione;
+  $("#mitigazione").innerHTML=`<h3 class="sub">Effetto misurato della mitigazione (test set, ${rep.n_test} asset)</h3>
+    <table class="mini"><thead><tr><th>Area</th><th>Guasti registrati</th><th>HOTL prima → dopo</th><th>Guasti finiti in HOTL prima → dopo</th></tr></thead><tbody>
+    ${mi.per_area.map(r=>`<tr><td>${esc(r.area)}</td><td>${r.guasti}</td><td>${r.hotl_prima} → ${r.hotl_dopo}</td><td>${r.guasti_hotl_prima} → <b>${r.guasti_hotl_dopo}</b></td></tr>`).join("")}</tbody></table><p class="note">${esc(mi.nota)}</p>`;
+  $("#biasTipo").innerHTML=rep.dimensioni.tipo_asset.metriche.map(m=>`<tr><td>${esc(TIPO(m.tipo_asset))}</td><td>${n2(m.recall)}</td><td>${n2(m.fnr)}</td><td>${m.gap_calibrazione==null?"–":n2(m.gap_calibrazione)}</td></tr>`).join("");
+  const dr=rep.drift, acc=dr.settimane.map(s=>s.accuracy), conf=dr.settimane.map(s=>s.confidenza_media);
+  const W=700,H=220,L=44,B=30,T=14,R=10, n=acc.length, lo=Math.min(0.6,...acc.filter(v=>v!=null))-0.02;
+  const x=i=>L+i*(W-L-R)/Math.max(1,n-1), y=v=>T+(1-(v-lo)/(1-lo))*(H-T-B);
   const path=arr=>arr.map((v,i)=>(i?"L":"M")+x(i).toFixed(1)+","+y(v).toFixed(1)).join(" ");
-  $("#drift").innerHTML=`<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Andamento accuratezza e confidenza media nelle ultime 12 settimane">
-    <line x1="${L}" y1="${y(0.8)}" x2="${W-R}" y2="${y(0.8)}" stroke="var(--hic)" stroke-dasharray="4 4"/><text x="${W-R}" y="${y(0.8)-4}" fill="var(--hic)" font-size="11" text-anchor="end">soglia alert 0.80</text>
-    ${[0.7,0.8,0.9,1.0].map(v=>`<text x="${L-6}" y="${y(v)+4}" fill="var(--mut)" font-size="11" text-anchor="end">${v.toFixed(2)}</text>`).join("")}
+  $("#drift").innerHTML=`<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Andamento accuratezza e confidenza media per settimana">
+    <line x1="${L}" y1="${y(dr.soglia_accuracy)}" x2="${W-R}" y2="${y(dr.soglia_accuracy)}" stroke="var(--hic)" stroke-dasharray="4 4"/><text x="${W-R}" y="${y(dr.soglia_accuracy)-4}" fill="var(--hic)" font-size="11" text-anchor="end">soglia alert ${dr.soglia_accuracy}</text>
+    ${[lo,(lo+1)/2,1].map(v=>`<text x="${L-6}" y="${y(v)+4}" fill="var(--mut)" font-size="11" text-anchor="end">${v.toFixed(2)}</text>`).join("")}
     <path d="${path(acc)}" fill="none" stroke="var(--hitl)" stroke-width="2.5"/><path d="${path(conf)}" fill="none" stroke="var(--hotl)" stroke-width="2.5"/>
     ${acc.map((v,i)=>`<circle cx="${x(i)}" cy="${y(v)}" r="3.5" fill="var(--hitl)"><title>Settimana ${i+1}: accuratezza ${v}</title></circle>`).join("")}
-    <text x="${L}" y="${H-8}" fill="var(--mut)" font-size="11">sett. 1</text><text x="${W-R}" y="${H-8}" fill="var(--mut)" font-size="11" text-anchor="end">sett. 12</text>
+    <text x="${L}" y="${H-8}" fill="var(--mut)" font-size="11">sett. 1</text><text x="${W-R}" y="${H-8}" fill="var(--mut)" font-size="11" text-anchor="end">sett. ${n}</text>
     <text x="${W/2}" y="${T+10}" fill="var(--hitl)" font-size="12" text-anchor="middle">— accuratezza   <tspan fill="var(--hotl)">— confidenza media</tspan></text></svg>`;
+  $("#driftNote").innerHTML=`${dr.allerta?'<b style="color:var(--hic)">ALLERTA DRIFT (C4):</b> ':""}${esc(dr.testo)} ${dr.allerta?"Mitigazione: soglia di confidenza alzata di "+ST.soglie.margine_drift+" (più decisioni in HITL).":""} <i>${esc(dr.nota)}</i>`;
+  const pa=$("#promArea"), v=pa.value;
+  pa.innerHTML=CFG.aree.map(a=>`<option value="${a}">${a}${ST.promozioni[a]&&ST.promozioni[a].manuale?" (promossa manualmente)":""}</option>`).join("");
+  pa.value=v||CFG.aree[0];
 }
 
 /* ===================== AUDIT ===================== */
-function renderAudit(){
-  const q=($("#fAudit").value||"").toLowerCase();
-  const rows=[...state.log].reverse().filter(r=>!q||JSON.stringify(r).toLowerCase().includes(q)).slice(0,200).map(r=>`<tr>
-    <td class="mono">${r.ts.slice(11,19)}</td><td class="mono" style="color:${r.attore==="SISTEMA"?"var(--hotl)":"var(--hitl)"}">${r.attore}</td><td>${r.evento}</td>
-    <td class="mono">${r.dec?r.dec.id+" · "+r.dec.livello+" · "+AZ_LBL[r.dec.azione]:(r.extra&&r.extra.ambito?r.extra.ambito:"")}</td><td style="color:var(--mut)">${r.mot||""}</td><td class="mono" style="color:var(--mut)">${r.hash}</td></tr>`).join("");
-  $("#auditBody").innerHTML=rows||`<tr><td colspan="6" class="empty">Nessun record</td></tr>`;
+async function caricaAudit(){
+  try{
+    const r=await api("/api/audit?limite=300"+($("#fAudit").value.trim()?"&testo="+encodeURIComponent($("#fAudit").value.trim()):""));
+    $("#auditBody").innerHTML=r.record.slice().reverse().map(x=>{const d=x.decisione||{},e=x.extra||{};
+      const mot=d.motivazione&&x.evento.startsWith("revisione_")?d.motivazione:e.motivazione||e.motivo_routing||(e.fonte?"fonte: "+e.fonte:"");
+      return `<tr><td class="mono">${x.n??""}</td><td class="mono">${esc((x.timestamp||"").slice(11,19))}</td><td class="mono" style="color:${x.attore==="SISTEMA"?"var(--hotl)":"var(--hitl)"}">${esc(x.attore)}</td><td>${esc(x.evento)}</td>
+      <td class="mono">${d.asset_id?esc(d.asset_id)+" · "+esc(d.livello)+" · "+esc(AZ(d.azione)):esc(e.ambito||e.area||e.asset_id||"")}</td><td style="color:var(--mut)">${esc(mot)}</td><td class="mono" style="color:var(--mut)">${esc((x.hash||"").slice(0,12))}</td></tr>`}).join("")||`<tr><td colspan="7" class="empty">Nessun record</td></tr>`;
+  }catch(e){toast("Errore audit: "+e.message,true)}
 }
-function verificaUI(){
-  const v=verificaCatena(); const el=$("#integ");
-  el.className="integ"+(v.ok?"":" bad");
-  el.innerHTML=`<span class="dot"></span><span>${v.ok?"Catena di hash verificata · "+v.n+" record integri":"CATENA COMPROMESSA al record #"+(v.idx+1)+": il log è stato modificato dopo la scrittura"}</span>`;
-  renderKPI();
-}
-
-/* ===================== STOP ===================== */
-function renderStops(){
-  $("#stops").innerHTML=[...state.stops].map(s=>`<span class="chip">STOP ${s}<button data-stop="${s}" aria-label="Disattiva stop ${s}">Disattiva</button></span>`).join("")||`<span class="note">Nessuna interruzione attiva</span>`;
-}
-function applicaStop(ambito,mot){
-  state.stops.add(ambito);
-  logEvento($("#operatore").value,"emergency_stop_ON",null,{ambito,mot});
-  let n=0;
-  state.decisioni.forEach(d=>{if(d.stato==="IN_ATTESA"&&stopApplicabile(d)){d.stato="BLOCCATA_STOP";n++;logEvento("SISTEMA","blocco_emergency_stop",d)}});
-  toast(`Stop ${ambito} attivo: ${n} decisioni in coda bloccate. Le nuove raccomandazioni nell'ambito verranno rifiutate.`);
-  renderAll();
+function mostraIntegrita(v,simulata){
+  const el=$("#integ"); el.className="integ"+(v.integra?"":" bad");
+  el.innerHTML=`<span class="dot"></span><span>${v.integra?"Catena di hash verificata · "+v.n_record+" record integri":(simulata?"SIMULAZIONE – ":"")+"CATENA COMPROMESSA al record #"+v.record_non_valido+": "+esc(v.motivo)}</span>`;
 }
 
-/* ===================== UI ===================== */
-function toast(msg){const t=$("#toast");t.textContent=msg;t.classList.add("show");clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove("show"),3800)}
-function renderAll(){renderKPI();renderCoda();renderRecenti();renderMatrix();renderBias();renderAudit();renderStops()}
-function reset(){seed=Date.now()%100000;state.decisioni=[];state.log=[];state.stops.clear();state.tampered=false;state.promoteSud=false;
-  logEvento("SISTEMA","avvio_sistema",null,{soglie:{conf:state.thConf,rischio:state.thRisk}});
-  state.decisioni=genera(38);state.decisioni.forEach(sottometti);renderAll();verificaUI();toast("Demo ricaricata: nuove raccomandazioni in coda.")}
+/* ===================== MONITORAGGIO ===================== */
+async function caricaKPI(){
+  try{
+    const m=await api("/api/monitoraggio");
+    const val=i=>i.valore==null?"–":i.unita==="pct"?pct(i.valore):i.unita==="s"?i.valore+" s":i.unita==="ms"?i.valore+" ms":i.valore;
+    const cl=s=>s==="ok"?"ok":s==="critico"||s==="allerta"?"bad":s==="n/d"||s==="info"?"":"warn";
+    $("#kpiBody").innerHTML=m.indicatori.map(i=>`<tr><td class="mono"><b>${i.codice}</b></td><td>${esc(i.nome)}</td><td class="mono">${val(i)}</td><td>${esc(i.target)}</td><td><span class="pill ${cl(i.stato)}">${esc(i.stato)}</span></td><td style="color:var(--mut)">${esc(i.dettaglio)}</td></tr>`).join("");
+    $("#puntoUnico").innerHTML=`<b>Punto unico di esecuzione (T1):</b> ${esc(m.punto_unico)}`;
+    $("#revBody").innerHTML=m.revisori.map(r=>`<tr><td class="mono">${esc(r.revisore)}</td><td>${r.revisioni}</td><td${r.revisioni_respinte?' class="warnt" title="Revisioni respinte per motivazione fotocopia (rubber-stamping)"':""}>${r.revisioni_respinte||0}</td><td>${pct(r.tasso_override)}</td><td>${r.tempo_mediano_s??"–"} s</td><td>${esc(r.segnali.join(", ")||"–")}</td></tr>`).join("")||`<tr><td colspan="6" class="empty">Nessuna revisione</td></tr>`;
+    $("#esecBody").innerHTML=m.esecuzioni.map(e=>`<tr><td class="mono">${esc(e.eseguita_il.slice(11,19))}</td><td class="mono">${esc(e.asset_id)}</td><td>${esc(AZ(e.azione))}</td><td>${esc(e.livello)}</td><td class="mono">${esc(e.autorizzata_da)}</td></tr>`).join("")||`<tr><td colspan="5" class="empty">Nessuna esecuzione</td></tr>`;
+  }catch(e){toast("Errore KPI: "+e.message,true)}
+}
 
-// coda: motivazione e pulsanti
+/* ===================== CONFIG / LLM ===================== */
+function renderConfig(){
+  const so=ST.soglie, act=document.activeElement;
+  if(!["thConf","thRisk","thSla"].includes(act&&act.id)&&!$("#sogMot").value){
+    $("#thConf").value=so.soglia_confidenza;$("#oConf").textContent=(+so.soglia_confidenza).toFixed(2);
+    $("#thRisk").value=so.soglia_rischio;$("#oRisk").textContent=(+so.soglia_rischio).toFixed(2);$("#thSla").value=so.sla_minuti}
+  $("#sogNote").textContent=`Soglia di confidenza effettiva ${so.soglia_confidenza_effettiva}${so.margine_drift?" (incluso +"+so.margine_drift+" per l'allerta di drift)":""}. HIC chiudibili solo da supervisori.`;
+  const l=ST.llm, c=l.configurazione;
+  $("#llmInfo").innerHTML=`<p>Motore: <b>${l.configurato?"LLM "+esc(l.descrizione):"template locale (LLM non configurato in .env)"}</b>${c.endpoint?" · endpoint "+esc(c.endpoint):""}</p>
+    <p class="note">Chiamate: ${l.ok} ok · ${l.cache} da cache · ${l.fallback} fallback (${l.fallback_simulati} simulati) · ${l.template} template · tasso fallback ${pct(l.tasso_fallback)}${l.guasto_simulato?` · <b style="color:var(--hitl)">guasto simulato: ${esc(l.guasto_simulato)}</b>`:""}${l.ultimo_errore?" · ultimo errore: "+esc(l.ultimo_errore):""}</p>
+    <p class="note">Guardrail: l'LLM riceve solo valori già calcolati; la risposta è scartata (fallback al template) se contiene numeri non presenti nei dati, gergo tecnico, se non cita il fattore principale o l'azione proposta.</p>`;
+  $("#modelloInfo").innerHTML=`<p class="note">Modello: ${esc(CFG.modello.tipo)} · test set ${CFG.modello.n_test} asset · accuracy ${CFG.modello.accuracy} · recall ${CFG.modello.recall} · flusso: ${ST.flusso.rimanenti} raccomandazioni ancora da simulare.</p>`;
+}
+
+function renderAll(){
+  if(!ST) return;
+  renderKPI();renderCoda();renderRecenti();renderStops();renderMatrix();renderConfig();
+  if(BIAS) renderBias();
+  if(!$("#p-kpi").hidden) caricaKPI();
+  if(!$("#p-audit").hidden) caricaAudit();
+}
+
+/* ===================== EVENTI: CODA ===================== */
 $("#coda").addEventListener("input",e=>{
   if(e.target.tagName!=="TEXTAREA")return;
-  const uid=e.target.dataset.uid, n=e.target.value.trim().length, ok=n>=15;
-  const c=$("#c-"+uid); c.textContent=`${n} / 15 caratteri${ok?" · motivazione valida":" · i pulsanti si sbloccano con la motivazione"}`; c.className=ok?"":"ko";
-  document.querySelectorAll(`[data-uid="${uid}"][data-act]`).forEach(b=>b.disabled=!ok);
+  const id=e.target.dataset.id, n=e.target.value.trim().length, ok=n>=CFG.min_motivazione;
+  drafts[id]=e.target.value;
+  if(errori[id]){delete errori[id];const er=$("#e-"+id);if(er)er.textContent=""}
+  const c=$("#c-"+id); c.textContent=`${n} / ${CFG.min_motivazione} caratteri${ok?" · motivazione valida":" · i pulsanti si sbloccano con la motivazione"}`; c.className=ok?"":"ko";
+  document.querySelectorAll(`[data-id="${id}"][data-act]`).forEach(b=>b.disabled=!ok);
 });
-$("#coda").addEventListener("click",e=>{
+$("#coda").addEventListener("focusin",e=>{
+  const card=e.target.closest("[data-card]"); if(!card||e.target.closest("[data-toggle]"))return; const id=card.dataset.card;
+  if(apertura.has(id+op()))return; apertura.add(id+op());
+  api(`/api/decisioni/${id}/apertura`,{body:{operatore:op()}}).catch(()=>apertura.delete(id+op()));
+});
+$("#coda").addEventListener("toggle",e=>{const d=e.target.closest("details[data-det]");if(!d)return;d.open?aperte.add(d.dataset.det):aperte.delete(d.dataset.det)},true);
+function commutaCard(h){
+  const card=h.closest("[data-card]"), id=h.dataset.toggle, ap=!card.classList.contains("open");
+  card.classList.toggle("open",ap); h.setAttribute("aria-expanded",ap); ap?espanse.add(id):espanse.delete(id);
+}
+$("#coda").addEventListener("keydown",e=>{const h=e.target.closest("[data-toggle]");if(h&&h===e.target&&(e.key==="Enter"||e.key===" ")){e.preventDefault();commutaCard(h)}});
+$("#coda").addEventListener("click",async e=>{
+  const th=e.target.closest("[data-toggle]"); if(th){commutaCard(th);return}
+  const rg=e.target.closest("button[data-rigenera]");
+  if(rg){azione(()=>api(`/api/decisioni/${rg.dataset.rigenera}/spiegazione`,{body:{}}),"Spiegazione rigenerata (template subito, LLM in arrivo se configurato).").catch(()=>{});return}
   const b=e.target.closest("button[data-act]"); if(!b)return;
-  const d=state.decisioni.find(x=>x.uid===b.dataset.uid); const mot=$("#m-"+d.uid).value;
-  if(b.dataset.act==="MODIFICATA"&&!$("#ms-"+d.uid).classList.contains("show")){$("#ms-"+d.uid).classList.add("show");$("#s-"+d.uid).focus();b.textContent="Conferma modifica e approva";return}
-  try{revisiona(d,b.dataset.act,mot,b.dataset.act==="MODIFICATA"?$("#s-"+d.uid).value:null);
-    toast(`${d.id}: ${b.dataset.act.toLowerCase()} da ${d.revisore}. Registrato nell'audit trail.`);renderAll()}
-  catch(err){toast("Errore: "+err.message)}
+  const id=b.dataset.id, act=b.dataset.act;
+  if(act==="MODIFICATA"&&!modAperta.has(id)){modAperta.add(id);$("#ms-"+id).classList.add("show");$("#s-"+id).focus();b.textContent="Conferma modifica e approva";return}
+  try{
+    const r=await api(`/api/decisioni/${id}/revisione`,{body:{operatore:op(),esito:act,motivazione:drafts[id]||"",azione_modificata:act==="MODIFICATA"?$("#s-"+id).value:null}});
+    delete drafts[id];delete errori[id];modAperta.delete(id);aperte.delete(id);
+    const fl=r.flag_revisione||[], warn=[];
+    if(fl.includes("motivazione_breve"))warn.push("motivazione breve");
+    if(fl.includes("revisione_rapida"))warn.push(`revisione in ${r.durata_revisione_s}s`);
+    toast(`${r.asset_id}: ${act.toLowerCase()} da ${r.revisore||op()} · ${r.eseguita?"azione eseguita":"azione NON eseguita"} · registrato nell'audit trail.`+(warn.length?` Segnalato nel monitoraggio (A3/A4): ${warn.join(", ")}.`:""),warn.length>0);
+    await aggiorna(true);
+  }catch(err){errori[id]=err.message;const el=$("#e-"+id);if(el)el.textContent=err.message;toast("Errore: "+err.message,true);await aggiorna(true)}
 });
-$("#fLivello").addEventListener("change",renderCoda);$("#fArea").addEventListener("change",renderCoda);
+$("#recenti").addEventListener("input",e=>{if(e.target.dataset.cmot)drafts["c"+e.target.dataset.cmot]=e.target.value});
+$("#recenti").addEventListener("click",e=>{const b=e.target.closest("button[data-contesta]");if(!b)return;const id=b.dataset.contesta;
+  azione(()=>api(`/api/decisioni/${id}/contestazione`,{body:{operatore:op(),motivazione:drafts["c"+id]||""}}),"Contestazione HOTL registrata (conta per l'override per area, C3).").then(()=>delete drafts["c"+id]).catch(()=>{})});
+document.querySelectorAll('input[name="fLiv"]').forEach(c=>c.addEventListener("change",renderCoda));
+document.querySelectorAll('input[name="rLiv"]').forEach(c=>c.addEventListener("change",renderRecenti));
+$("#btnEscR").addEventListener("click",e=>{e.currentTarget.setAttribute("aria-pressed",!escNascoste("#btnEscR"));renderRecenti()});
+$("#fArea").addEventListener("change",renderCoda);
+$("#btnEsc").addEventListener("click",e=>{e.currentTarget.setAttribute("aria-pressed",!escNascoste());renderCoda()});
+$("#btnNuove").addEventListener("click",()=>azione(()=>api("/api/raccomandazioni",{body:{n:5}}),r=>`${r.generate} nuove raccomandazioni: HIC ${r.per_livello.HIC}, HITL ${r.per_livello.HITL}, HOTL ${r.per_livello.HOTL}${r.bloccate?", "+r.bloccate+" bloccate da stop":""}.`).catch(()=>{}));
 
-// stop
-$("#btnStop").addEventListener("click",()=>{
-  const mot=$("#stopMot").value.trim(); if(mot.length<15){toast("Motivazione dello stop obbligatoria (min 15 caratteri).");$("#stopMot").focus();return}
-  const amb=$("#stopScope").value; $("#dlgText").textContent=`Ambito: ${amb}. Motivazione: «${mot}».`; $("#dlgStop").showModal();
+/* ===================== EVENTI: STOP ===================== */
+let ambitoPendente=null;
+$("#btnStop").addEventListener("click",async()=>{
+  const mot=$("#stopMot").value.trim(); if(mot.length<CFG.min_motivazione){toast(`Motivazione dello stop obbligatoria (min ${CFG.min_motivazione} caratteri).`,true);$("#stopMot").focus();return}
+  try{const p=await api("/api/stop/anteprima?ambito="+encodeURIComponent(ambitoScelto()));
+    if(p.gia_attivo){toast("Stop già attivo su "+p.ambito,true);return}
+    ambitoPendente=p.ambito;
+    $("#dlgText").innerHTML=`Ambito: <b>${esc(p.ambito)}</b>. Verranno bloccate <b>${p.in_coda}</b> decisioni in coda${p.asset.length?" ("+esc(p.asset.join(", "))+(p.in_coda>p.asset.length?"…":"")+")":""}; le altre <b>${p.altre_in_coda}</b> continuano.<br>Motivazione: «${esc(mot)}».`;
+    $("#dlgStop").showModal();
+  }catch(e){toast("Errore: "+e.message,true)}
 });
 $("#dlgNo").addEventListener("click",()=>$("#dlgStop").close());
-$("#dlgYes").addEventListener("click",()=>{$("#dlgStop").close();applicaStop($("#stopScope").value,$("#stopMot").value.trim());$("#stopMot").value=""});
-$("#stops").addEventListener("click",e=>{const b=e.target.closest("button[data-stop]");if(!b)return;
-  state.stops.delete(b.dataset.stop);logEvento($("#operatore").value,"emergency_stop_OFF",null,{ambito:b.dataset.stop,mot:"riattivazione dopo verifica"});
-  state.decisioni.forEach(d=>{if(d.stato==="BLOCCATA_STOP"&&!stopApplicabile(d)){d.stato="IN_ATTESA";logEvento("SISTEMA","sblocco_in_coda",d)}});
-  toast(`Stop ${b.dataset.stop} disattivato: le decisioni bloccate tornano in coda.`);renderAll()});
+$("#dlgYes").addEventListener("click",()=>{$("#dlgStop").close();
+  azione(()=>api("/api/stop",{body:{ambito:ambitoPendente,operatore:op(),motivazione:$("#stopMot").value.trim()}}),r=>`Stop ${r.ambito} attivo: ${r.bloccate} decisioni in coda bloccate; le nuove nell'ambito verranno bloccate.`).then(()=>$("#stopMot").value="").catch(()=>{})});
+let stopDaRiattivare=null;
+$("#stops").addEventListener("click",e=>{const b=e.target.closest("button[data-stop]");if(!b)return;stopDaRiattivare=b.dataset.stop;
+  $("#dlgOffText").innerHTML=`Riattivare l'ambito <b>${esc(stopDaRiattivare)}</b>? Operatore: <b>${esc(op())}</b>.`;$("#offMot").value="";$("#offOk").checked=false;$("#dlgOff").showModal()});
+$("#offNo").addEventListener("click",()=>$("#dlgOff").close());
+$("#offYes").addEventListener("click",()=>{
+  azione(()=>api("/api/stop/disattiva",{body:{ambito:stopDaRiattivare,operatore:op(),motivazione:$("#offMot").value.trim(),conferma:$("#offOk").checked}}),r=>`Stop ${r.ambito} disattivato: ${r.sbloccate} decisioni tornano in coda con revisione umana.`).then(()=>$("#dlgOff").close()).catch(()=>{})});
 
-// tabs (ARIA + frecce)
+/* ===================== EVENTI: ALTRO ===================== */
 const tabs=[...document.querySelectorAll("[role=tab]")];
-function selectTab(t){tabs.forEach(x=>{const on=x===t;x.setAttribute("aria-selected",on);x.tabIndex=on?0:-1;document.getElementById(x.getAttribute("aria-controls")).hidden=!on});t.focus()}
+function selectTab(t){tabs.forEach(x=>{const on=x===t;x.setAttribute("aria-selected",on);x.tabIndex=on?0:-1;document.getElementById(x.getAttribute("aria-controls")).hidden=!on});t.focus();
+  if(t.id==="tab-bias")caricaBias(); if(t.id==="tab-audit")caricaAudit(); if(t.id==="tab-kpi")caricaKPI()}
 tabs.forEach(t=>{t.addEventListener("click",()=>selectTab(t));t.addEventListener("keydown",e=>{const i=tabs.indexOf(t);if(e.key==="ArrowRight")selectTab(tabs[(i+1)%tabs.length]);if(e.key==="ArrowLeft")selectTab(tabs[(i-1+tabs.length)%tabs.length]);if(e.key==="Home")selectTab(tabs[0]);if(e.key==="End")selectTab(tabs[tabs.length-1])})});
 
-// bias / audit / config
-$("#btnPromote").addEventListener("click",()=>{state.promoteSud=!state.promoteSud;
-  logEvento($("#operatore").value,state.promoteSud?"mitigazione_ON_sud_HITL":"mitigazione_OFF_sud_HITL",null,{mot:"gap di recall e sospetto label bias area Sud"});
-  state.decisioni.filter(d=>d.stato==="IN_ATTESA").forEach(d=>d.livello=route(d));renderAll();toast(state.promoteSud?"Le decisioni del Sud richiedono ora approvazione umana.":"Mitigazione revocata.")});
-$("#fAudit").addEventListener("input",renderAudit);
-$("#btnVerify").addEventListener("click",verificaUI);
-$("#btnTamper").addEventListener("click",()=>{if(!state.log.length)return;const r=state.log[Math.max(0,state.log.length-3)];r.mot="(modificata a posteriori)";state.tampered=true;renderAudit();verificaUI();toast("Un record è stato alterato: la verifica della catena lo rileva.")});
-$("#btnExport").addEventListener("click",()=>{const blob=new Blob([JSON.stringify(state.log,null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="audit_trail.json";a.click()});
-["thConf","thRisk"].forEach(id=>$("#"+id).addEventListener("input",e=>{state[id]=+e.target.value;$("#o"+id.slice(2)).textContent=(+e.target.value).toFixed(2);
-  logEvento($("#operatore").value,"modifica_soglie",null,{mot:`conf ${state.thConf.toFixed(2)} · rischio ${state.thRisk.toFixed(2)}`});
-  state.decisioni.filter(d=>d.stato==="IN_ATTESA").forEach(d=>d.livello=route(d));renderAll()}));
-
-// accessibilità
+$("#btnPromote").addEventListener("click",()=>{const a=$("#promArea").value, man=ST.promozioni[a]&&ST.promozioni[a].manuale;
+  azione(()=>api(`/api/aree/${encodeURIComponent(a)}/promozione`,{body:{attiva:!man,operatore:op(),motivazione:$("#promMot").value.trim()}}),r=>`Area ${r.area}: ${man?"promozione manuale revocata":"promossa a HITL"}.`).then(()=>{$("#promMot").value="";caricaBias()}).catch(()=>{})});
+$("#btnCerca").addEventListener("click",caricaAudit);
+$("#fAudit").addEventListener("keydown",e=>{if(e.key==="Enter")caricaAudit()});
+$("#btnVerify").addEventListener("click",async()=>{try{mostraIntegrita(await api("/api/audit/verifica"))}catch(e){toast(e.message,true)}});
+$("#btnTamper").addEventListener("click",async()=>{try{const r=await api("/api/audit/simula-manomissione",{body:{}});mostraIntegrita(r.esito_sulla_copia,true);
+  toast(`Record #${r.record_alterato} alterato (${r.campo}) su una copia: la verifica lo rileva. Il log reale non è stato toccato.`)}catch(e){toast(e.message,true)}});
+$("#btnRicostruisci").addEventListener("click",async()=>{const a=$("#fAsset").value.trim();if(!a)return;
+  try{const r=await api("/api/audit/ricostruisci/"+encodeURIComponent(a));
+    $("#ricostruzione").innerHTML=`<div class="bignote">Ricostruzione di <b>${esc(r.asset_id)}</b> in ${r.ms} ms · ${r.n_record} record · catena ${r.integrita&&r.integrita.integra?"integra":"NON integra"}
+      ${r.decisioni.map(d=>`<div style="margin-top:8px"><b>${esc(d.decisione_id||"")}</b> · ${esc(d.esito||d.stato_finale||"")} · <b>chi:</b> ${esc(d.chi||"–")} · <b>quando:</b> ${esc(d.quando||"–")} · <b>perché:</b> «${esc(d.perche||"–")}» · AI: ${esc(AZ(d.azione_ai))} → finale: ${esc(AZ(d.azione_finale))}</div>`).join("")||"<div>Nessuna decisione per questo asset nella sessione corrente.</div>"}</div>`;
+  }catch(e){toast(e.message,true)}});
+["thConf","thRisk"].forEach(id=>$("#"+id).addEventListener("input",e=>$("#o"+id.slice(2)).textContent=(+e.target.value).toFixed(2)));
+$("#btnSoglie").addEventListener("click",()=>azione(()=>api("/api/soglie",{body:{operatore:op(),motivazione:$("#sogMot").value.trim(),soglia_confidenza:+$("#thConf").value,soglia_rischio:+$("#thRisk").value,sla_minuti:+$("#thSla").value}}),"Soglie aggiornate e registrate nell'audit trail.").then(()=>$("#sogMot").value="").catch(()=>{}));
+document.querySelectorAll("[data-guasto]").forEach(b=>b.addEventListener("click",()=>azione(()=>api("/api/llm/guasto",{body:{modalita:b.dataset.guasto||null,operatore:op()}}),b.dataset.guasto?"Guasto LLM simulato: usa 'Rigenera spiegazione' o genera nuove raccomandazioni per vedere il fallback.":"LLM ripristinato.").catch(()=>{})));
 $("#btnContrast").addEventListener("click",e=>{const on=document.documentElement.dataset.contrast!=="high";document.documentElement.dataset.contrast=on?"high":"";e.target.setAttribute("aria-pressed",on)});
 $("#btnSize").addEventListener("click",e=>{const on=document.documentElement.dataset.size!=="large";document.documentElement.dataset.size=on?"large":"";e.target.setAttribute("aria-pressed",on)});
-$("#btnReset").addEventListener("click",reset);
+$("#btnReset").addEventListener("click",()=>{$("#resetMot").value="";$("#dlgReset").showModal()});
+$("#resetNo").addEventListener("click",()=>$("#dlgReset").close());
+$("#resetYes").addEventListener("click",()=>azione(()=>api("/api/reset",{body:{operatore:op(),motivazione:$("#resetMot").value.trim()}}),r=>`Nuova sessione ${r.sessione}. Log precedente archiviato${r.archivio?" in "+r.archivio.file:""}.`).then(()=>{$("#dlgReset").close();Object.keys(drafts).forEach(k=>delete drafts[k]);if(BIAS)caricaBias()}).catch(()=>{}));
+$("#operatore").addEventListener("change",()=>{localStorage.setItem("eg_operatore",op());renderCoda()});
 
-reset();
+/* ===================== AVVIO ===================== */
+(async function(){
+  if(location.protocol==="file:"){const o=$("#offline");o.hidden=false;o.textContent="Pagina aperta come file: avviare il server con  python dashboard/backend/app.py  e aprire http://127.0.0.1:8000";return}
+  $("#operatore").value=localStorage.getItem("eg_operatore")||$("#operatore").value;
+  try{CFG=await api("/api/config")}catch(e){const o=$("#offline");o.hidden=false;o.textContent="Backend non raggiungibile: "+e.message;return}
+  $("#stopArea").innerHTML+=CFG.aree.map(a=>`<option value="${a}">Area: ${a}</option>`).join("");
+  $("#stopTipo").innerHTML+=CFG.tipi.map(t=>`<option value="${t}">Tipo: ${TIPO(t)}</option>`).join("");
+  $("#fArea").innerHTML+=CFG.aree.map(a=>`<option>${a}</option>`).join("");
+  await aggiorna(true);
+  setInterval(()=>{if(!document.querySelector("dialog[open]"))aggiorna(false)},4000);
+  setInterval(()=>{if(ST)document.querySelectorAll("[data-card]").length&&renderKPI()},30000);
+})();
 </script>
 </body>
 </html>

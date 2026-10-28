@@ -1,41 +1,84 @@
 """
-EnerGuard Starter Kit - test dell'explainer
-============================================
-Esecuzione: python test_llm.py
-1) Verifica che il modulo a template funzioni (sempre).
-2) Se il file .env configura un LLM, esegue una chiamata reale e mostra il risultato,
-   la latenza e l'eventuale motivo di fallback.
-Prerequisito: modello.joblib e predizioni.csv (eseguire prima train_baseline.py).
+EnerGuard - verifica della connessione all'LLM
+===============================================
+Esecuzione:  python test_llm.py [--asset AST-00042] [--guasto chiave_errata|rete_assente]
+
+Legge la configurazione LLM (.env o variabili d'ambiente, vedi explainer.py),
+prende un asset (di default quello a rischio piu' alto del test set), calcola
+fattori, azione e livello di supervisione esattamente come la dashboard e
+chiede la spiegazione all'LLM. Stampa fonte, latenza e testo.
+Non scrive nell'audit trail della dashboard e non stampa mai la chiave API.
+Exit code 0 se la spiegazione arriva dall'LLM (o se l'LLM non e' configurato
+e si usa il template per scelta), 1 se scatta il fallback.
 """
+
+import argparse
+import sys
+
 import joblib
-import pandas as pd
 
-from explainer import ConfigLLM, SpiegatoreLLM, SpiegatoreTemplate, estrai_fattori
-from utils_io import carica_csv
+from explainer import (GUASTI_SIMULABILI, ConfigLLM, SpiegatoreLLM, analizza_riga, calibra_etichette)
+from oversight_manager import (OversightManager, Raccomandazione, azione_raccomandata,
+                               calcola_confidenza)
+from utils_io import (PERCORSO_DATASET, PERCORSO_MODELLO, PERCORSO_PREDIZIONI, carica_csv,
+                      prepara_feature)
 
-modello = joblib.load("modello.joblib")
-pred = carica_csv("predizioni.csv")
-df = carica_csv("energuard_dataset.csv")
-X = pd.get_dummies(df.drop(columns=["asset_id", "guasto_entro_30gg"]))
-feature_names = list(X.columns)
 
-riga = pred[pred["y_pred"] == 1].iloc[0]
-x = X.loc[df["asset_id"] == riga["asset_id"]].iloc[0]
-fattori = estrai_fattori(modello, x, feature_names)
-rec = {"asset_id": riga["asset_id"], "tipo_asset": riga["tipo_asset"], "area_geografica": riga["area_geografica"],
-       "criticita_utenza": riga["criticita_utenza"], "prob_guasto": float(riga["proba"]),
-       "confidenza": float(riga["confidenza"]), "azione_proposta": "programma_manutenzione", "livello": "HITL"}
+def main(argv=None) -> int:
+    parser = argparse.ArgumentParser(description="Prova la spiegazione LLM su un asset")
+    parser.add_argument("--asset", help="asset_id da spiegare (default: rischio piu' alto del test set)")
+    parser.add_argument("--guasto", choices=sorted(GUASTI_SIMULABILI),
+                        help="simula un guasto dell'LLM per verificare il fallback al template")
+    parser.add_argument("--env", help="percorso esplicito del file .env")
+    args = parser.parse_args(argv)
 
-print("=== Fattori principali (SHAP) ===")
-for f in fattori:
-    print(f"  {f.etichetta:<32} {f.valore:>8}  contributo {f.contributo:+.3f}  ({f.giudizio})")
+    cfg = ConfigLLM(args.env)
+    print("Configurazione LLM:", cfg.dettagli())
+    if not cfg.attivo:
+        print("LLM non configurato (LLM_PROVIDER/LLM_API_KEY/LLM_MODEL): verra' usato il template.")
 
-print("\n=== 1. Spiegazione a template ===")
-sp = SpiegatoreTemplate().spiega(rec, fattori)
-print(sp.testo, "\n", sp.incertezza)
+    dataset = carica_csv(PERCORSO_DATASET)
+    calibra_etichette(dataset)
+    modello = joblib.load(PERCORSO_MODELLO)
+    colonne = list(modello.feature_names_in_)
+    asset_id = args.asset
+    if not asset_id:
+        pred = carica_csv(PERCORSO_PREDIZIONI)
+        asset_id = str(pred.sort_values("proba", ascending=False).iloc[0]["asset_id"])
+    righe = dataset[dataset["asset_id"] == asset_id]
+    if righe.empty:
+        print(f"Asset {asset_id} non presente nel dataset", file=sys.stderr)
+        return 2
+    asset = righe.iloc[0]
+    X = prepara_feature(righe, colonne)
+    prob = float(modello.predict_proba(X)[:, 1][0])
+    analisi = analizza_riga(modello, X.iloc[0], colonne)
 
-cfg = ConfigLLM()
-print(f"\n=== 2. LLM: {cfg.descrizione()} ({'attivo' if cfg.attivo else 'NON configurato: creare .env da .env.example'}) ===")
-sp = SpiegatoreLLM(cfg).spiega(rec, fattori)
-print("fonte:", sp.fonte, "| latenza:", sp.latenza_ms, "ms")
-print(sp.testo, "\n", sp.incertezza)
+    r = Raccomandazione(asset_id, asset["tipo_asset"], asset["area_geografica"], asset["criticita_utenza"],
+                        prob, calcola_confidenza(prob), azione_raccomandata(prob, float(asset["carico_pct"])),
+                        [(f.nome, f.contributo) for f in analisi.fattori], carico_pct=float(asset["carico_pct"]))
+    manager = OversightManager(audit_logger=None)
+    manager.route(r)
+    rec = manager.contesto_spiegazione(r)
+    print(f"\nAsset {asset_id} ({asset['tipo_asset']}, {asset['area_geografica']}, utenza "
+          f"{asset['criticita_utenza']}): P(guasto) {prob:.2f}, azione {r.azione_proposta}, "
+          f"livello {r.livello.value} ({r.regola})")
+    print(f"\nFattori principali (contributi {analisi.metodo.upper()} alla probabilita' di guasto):")
+    for f in analisi.fattori:
+        print(f"  {f.nome:<32} valore {f.valore_testo:<12} contributo {f.contributo:+.3f}  "
+              f"({f.giudizio}, {f.direzione})")
+
+    spiegatore = SpiegatoreLLM(cfg, audit_logger=None, usa_cache=False)
+    tpl = spiegatore.fallback.spiega(rec, analisi.fattori)
+    print(f"\n[template] {tpl.testo}\n           {tpl.incertezza}")
+    if args.guasto:
+        spiegatore.imposta_guasto(args.guasto)
+    sp = spiegatore.spiega(rec, analisi.fattori)
+    print(f"\nfonte: {sp.fonte}  |  latenza: {sp.latenza_ms} ms")
+    print("Spiegazione:", sp.testo)
+    print("Incertezza: ", sp.incertezza)
+    return 0 if sp.tipo_fonte == "llm" or not cfg.attivo else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
