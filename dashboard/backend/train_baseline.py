@@ -20,9 +20,10 @@ from pathlib import Path
 import joblib
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import classification_report, roc_auc_score
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import StratifiedKFold, cross_val_predict, train_test_split
 
 from bias_detector import BiasDetector
+from modello_calibrato import ModelloCalibrato
 from oversight_manager import SOGLIA_DECISIONALE, calcola_confidenza
 from utils_io import BACKEND_DIR, PERCORSO_DATASET, carica_csv, prepara_feature
 
@@ -31,7 +32,8 @@ from utils_io import BACKEND_DIR, PERCORSO_DATASET, carica_csv, prepara_feature
 SOGLIA = SOGLIA_DECISIONALE
 
 
-def addestra(percorso_dataset=PERCORSO_DATASET, cartella_output=BACKEND_DIR, verboso: bool = True) -> dict:
+def addestra(percorso_dataset=PERCORSO_DATASET, cartella_output=BACKEND_DIR, verboso: bool = True,
+             calibra: bool = True) -> dict:
     df = carica_csv(percorso_dataset)
     y = df["guasto_entro_30gg"]
     X = prepara_feature(df)
@@ -40,7 +42,14 @@ def addestra(percorso_dataset=PERCORSO_DATASET, cartella_output=BACKEND_DIR, ver
         X, y, df, test_size=0.3, random_state=0, stratify=y)
 
     modello = RandomForestClassifier(n_estimators=300, random_state=0, class_weight="balanced")
-    modello.fit(X_tr, y_tr)
+    if calibra:
+        # calibrazione (C2) su predizioni out-of-fold del solo training: il test set resta intatto
+        p_oof = cross_val_predict(modello, X_tr, y_tr, cv=StratifiedKFold(5, shuffle=True, random_state=0),
+                                  method="predict_proba")[:, 1]
+        modello.fit(X_tr, y_tr)
+        modello = ModelloCalibrato.da_predizioni_oof(modello, p_oof, y_tr, X_tr=X_tr, soglia=SOGLIA)
+    else:
+        modello.fit(X_tr, y_tr)
 
     proba = modello.predict_proba(X_te)[:, 1]
     pred = (proba >= SOGLIA).astype(int)
@@ -49,8 +58,9 @@ def addestra(percorso_dataset=PERCORSO_DATASET, cartella_output=BACKEND_DIR, ver
     # --- Metriche disaggregate: il deliverable chiave del Tier 1 ---
     valut = df_te.copy()
     valut["y_true"], valut["y_pred"], valut["proba"] = y_te.values, pred, proba
-    # Confidenza: max(p, 1-p), dichiarata in model card (stessa funzione usata dal routing)
-    valut["confidenza"] = valut["proba"].apply(calcola_confidenza)
+    # Confidenza: P(previsione corretta) dal meta-modello RF (model card); senza calibrazione max(p, 1-p)
+    valut["confidenza"] = (modello.confidenza(X_te).round(3) if calibra
+                           else valut["proba"].apply(calcola_confidenza))
 
     bd = BiasDetector()
     report = bd.report(valut, df)

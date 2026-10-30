@@ -34,16 +34,16 @@ Sono disponibili anche `--senza-llm` (solo template) e `--port`.
 - Nell'audit trail compare `revisione_RIFIUTATA` e **non** compare `esecuzione_azione`. Lo si vede con *Audit trail → Ricostruisci* sull'asset: il campo "eseguita" è falso.
 
 **Dove**
-- `oversight_manager.py:415` (`revisiona`): `_esegui` viene chiamato **solo** per APPROVATA o MODIFICATA.
-- Endpoint `POST /api/decisioni/{id}/revisione` (`app.py:624`).
+- `oversight_manager.py:521` (`revisiona`): `_esegui` viene chiamato **solo** per APPROVATA o MODIFICATA.
+- Endpoint `POST /api/decisioni/{id}/revisione` (`app.py:632`).
 
 ### T1-bis · "Mostrateci nel codice l'unico punto in cui un'azione viene eseguita, e dimostrate che una decisione rifiutata non può raggiungerlo"
 
 **Risposta**
-- Il punto unico è `OversightManager._esegui` (`oversight_manager.py:841`). Ha esattamente due chiamanti:
-  1. `sottometti` (`:394`), solo per HOTL;
-  2. `revisiona` (`:473`), solo per APPROVATA o MODIFICATA.
-- Anche se qualcuno lo chiamasse impropriamente, `_motivo_non_eseguibile` (`:858`) ricontrolla lo stato e nega l'esecuzione se:
+- Il punto unico è `OversightManager._esegui` (`oversight_manager.py:956`). Ha esattamente due chiamanti:
+  1. `sottometti` (`:500`), solo per HOTL;
+  2. `revisiona` (`:579`), solo per APPROVATA o MODIFICATA.
+- Anche se qualcuno lo chiamasse impropriamente, `_motivo_non_eseguibile` (`:973`) ricontrolla lo stato e nega l'esecuzione se:
   - lo stato è diverso da APPROVATA, MODIFICATA o AUTO_ESEGUITA;
   - l'esecuzione automatica riguarda un livello diverso da HOTL;
   - manca una revisione umana motivata;
@@ -51,19 +51,19 @@ Sono disponibili anche `--senza-llm` (solo template) e `--port`.
 - In questi casi solleva `EsecuzioneNonAutorizzata` e registra `esecuzione_negata` nel log.
 
 **Dove**
-- Scheda **Monitoraggio KPI**: il KPI **A1** (auto-esecuzione impropria) deve valere 0, e il registro delle esecuzioni riporta `punto_unico` (`app.py:513`).
+- Scheda **Monitoraggio KPI**: il KPI **A1** (auto-esecuzione impropria) deve valere 0, e il registro delle esecuzioni riporta `punto_unico` (`app.py:521`).
 - Prova di ricerca: `grep -n "_esegui(" dashboard/backend/*.py`.
 
 ### T2 · Motivazione – "Approvate con motivazione vuota, poi con 'ok'"
 
 **Risposta**
 - Entrambe vengono rifiutate con errore 400 e il messaggio appare sotto il campo.
-- `_valida_motivazione` (`oversight_manager.py:560`) richiede:
+- `_valida_motivazione` (`oversight_manager.py:672`) richiede:
   - almeno **15 caratteri**;
   - almeno 2 parole;
   - almeno 5 lettere diverse.
   Testi come "aaaaaaaaaaaaaaaa" o "ok ok ok ok ok" quindi non passano.
-- **Anche la motivazione "fotocopia" è bloccante.** `_blocca_fotocopia` (`:490`) è chiamata da `revisiona` (`:462`) prima di qualsiasi cambio di stato. `_trova_fotocopia` (`:538`) confronta la motivazione con quelle già usate per altre decisioni, ignorando maiuscole, accenti, punteggiatura e numeri (cambiare solo l'ID asset non basta). Se la similarità testuale è ≥ 0.85 (`SOGLIA_FOTOCOPIA`, `:253`):
+- **Anche la motivazione "fotocopia" è bloccante.** `_blocca_fotocopia` (`:596`) è chiamata da `revisiona` (`:568`) prima di qualsiasi cambio di stato. `_trova_fotocopia` (`:650`) confronta la motivazione con quelle già usate per altre decisioni, ignorando maiuscole, accenti, punteggiatura e numeri (cambiare solo l'ID asset non basta). Se la similarità testuale è ≥ 0.85 (`SOGLIA_FOTOCOPIA`, `:304`):
   - la revisione è **respinta** con errore 400 (`RubberStamping`, `:95`) e il messaggio indica da quale asset è copiata;
   - la decisione **resta in coda** (IN_ATTESA) e **non viene eseguita**;
   - il testo dell'errore resta visibile sulla card finché l'operatore non riscrive la motivazione;
@@ -88,7 +88,7 @@ Sono disponibili anche `--senza-llm` (solo template) e `--port`.
 - La **riattivazione** richiede motivazione e conferma esplicita. Le decisioni sbloccate tornano in coda **almeno HITL** (R6) e niente riparte in automatico.
 
 **Dove**
-- `oversight_manager.py:657` (`attiva_stop`), `:680` (`disattiva_stop`), `:718` (`_reinstrada_post_stop`), `:612` (ambiti `GLOBALE` / `area:` / `tipo:` / `area:+tipo:`).
+- `oversight_manager.py:770` (`attiva_stop`), `:793` (`disattiva_stop`), `:831` (`_reinstrada_post_stop`), `:725` (ambiti `GLOBALE` / `area:` / `tipo:` / `area:+tipo:`).
 - Controllo nel punto di esecuzione: `:871`.
 - Dashboard: chip "STOP …" nell'header e sezione "Bloccate da emergency stop" sotto la coda.
 
@@ -103,8 +103,8 @@ Sono disponibili anche `--senza-llm` (solo template) e `--port`.
 6. **casi simili** dallo storico, con avvertenza se provengono dal Sud.
 
 **Dove**
-- `explainer.py:371` (`SpiegatoreTemplate`), `:403` (`_incertezza`), `:444` (`controfattuale`), `:509` (`CasiSimili`).
-- Composizione nella card: `app.py:165` (`_sottometti_riga`).
+- `explainer.py:373` (`SpiegatoreTemplate`), `:405` (`_incertezza`), `:457` (`controfattuale`), `:522` (`CasiSimili`).
+- Composizione nella card: `app.py:171` (`_sottometti_riga`).
 
 ### T4-bis (con LLM) · "Cosa succede se stacchiamo la rete o mettiamo una chiave errata? Quali guardrail impediscono all'LLM di inventare numeri?"
 
@@ -113,9 +113,9 @@ Sono disponibili anche `--senza-llm` (solo template) e `--port`.
 - La card riceve comunque la spiegazione dal template, con fonte dichiarata `template(fallback:…)`. **Nessuna card resta mai senza spiegazione.**
 - La spiegazione a template viene mostrata subito; quella dell'LLM arriva in background e la sostituisce.
 
-**Risposta: guardrail** (`explainer.py:905`)
+**Risposta: guardrail** (`explainer.py:923`)
 1. **Ogni numero** citato deve essere presente nei dati passati all'LLM. Sono ammessi arrotondamenti e la forma percentuale.
-2. Niente **gergo tecnico**: lista `GERGO` (`:683`), es. "shap", "feature", "coefficient".
+2. Niente **gergo tecnico**: lista `GERGO` (`:696`), es. "shap", "feature", "coefficient".
 3. Il **fattore principale** deve essere citato.
 4. L'**azione proposta** deve essere citata.
 5. È imposto un limite di lunghezza.
@@ -124,7 +124,7 @@ Qualunque violazione, o qualunque errore (rete, quota, timeout, JSON malformato)
 
 **Dove**
 - KPI **B3b** (fonte dichiarata) e **B3c** (tasso di fallback < 5%).
-- `POST /api/llm/guasto` (`app.py:663`).
+- `POST /api/llm/guasto` (`app.py:671`).
 
 ### T5 · Bias nascosto – "Cosa avete scoperto sui dati storici di quest'azienda?"
 
@@ -145,7 +145,7 @@ Qualunque violazione, o qualunque errore (rete, quota, timeout, JSON malformato)
 
 **Dove**
 - `bias_detector.py:201` (`indagine_label_bias`), `:259` (`confronto_abbinato`), `:98` (`calibrazione_per_gruppo`).
-- `app.py:220` (`_aggiorna_promozioni`), `app.py:398` (`misura_mitigazione`).
+- `app.py:226` (`_aggiorna_promozioni`), `app.py:406` (`misura_mitigazione`).
 - Scheda **Fairness & drift**: box "Cosa abbiamo scoperto (T5)", tabella label bias e tabella mitigazione prima/dopo.
 
 ### T6 · Audit a ritroso – "Ricostruite in un minuto una decisione chiusa un'ora fa. Poi dimostrate che il log non è manomissibile in silenzio"
@@ -179,9 +179,9 @@ Qualunque violazione, o qualunque errore (rete, quota, timeout, JSON malformato)
 
 **Risposta**
 - Un falso negativo (guasto non previsto, magari su una cabina che serve un ospedale) costa molto più di un'ispezione inutile.
-- Per questo la **soglia decisionale è 0.35** e non 0.50 (`oversight_manager.py:107`, usata anche in `train_baseline.py:31`).
+- Per questo la **soglia decisionale è 0.20** (su probabilità calibrate, equivalente a 0.35 sul modello non calibrato) e non 0.50 (`oversight_manager.py:107`, usata anche in `train_baseline.py:31`).
 - Il modello è un RandomForest (300 alberi, `class_weight="balanced"`, `train_baseline.py:42`).
-- Risultati sul test set (720 asset): **AUC 0.862**, accuracy 0.783, **recall 0.744**.
+- Risultati sul test set (720 asset): **AUC 0.862**, accuracy 0.774, **recall 0.752**.
 
 ### "Annotate ogni gap superiore a 15 punti di recall (per area e per tipo di asset)."
 
@@ -198,8 +198,9 @@ Sono riportate anche in `DichiarazioneDiOversight.md` §4.
 ### "Perché proprio quelle soglie?" (la giuria non chiede quali, chiede perché)
 
 **Risposta**
-- **Rischio 0.60 e confidenza 0.80:** sono i default della guida, mantenuti di proposito. Con `confidenza = max(p, 1−p)`, il valore 0.80 manda all'umano tutta la zona 0.20 < p < 0.80.
-- **Margine di drift +0.05:** porta la soglia di confidenza a 0.85 quando l'accuratezza recente scende sotto 0.80.
+- **Rischio 0.85 → HIC (non 0.60 → HITL della guida):** da 0.85 il guasto è molto probabile e anche non intervenire è una scelta pesante, quindi decide solo l'umano, anche se il modello è affidabile (a destra della curva la decisione passa da HITL a HIC). Sul test set R3 riguarda 5 asset su 720 (HIC totale 9.3%). Sotto 0.85 le azioni con P ≥ 0.55 non sono mai leggere e restano comunque HITL.
+- **Confidenza 0.80 con curva (criticità ≤ 0.20):** R3, R4 e R7 sono calcolate da un'unica funzione di zona (`zona_matrice`) basata sulla curva f(P) = 0.80 + 0.10 × P(guasto), che va da (0.80, 0) a (0.90, 1) e divide la matrice per tutta l'altezza. Sotto la curva: zona gialla (HITL, R4) o rossa se P ≥ 0.85 (HIC, R3). Sulla curva o a destra: zona verde (HOTL, R7) o HIC se P ≥ 0.85. La criticità (1 − confidenza) + 0.10 × P(guasto) è la stessa curva espressa come numero. Più è alto il rischio, più deve essere affidabile il modello. Sul test set i guasti mancati che finiscono in HOTL sono 9 (16 con la soglia piatta a 0.78), gli errori eseguiti in autonomia 15 (erano 29), HOTL al 49% (era 54%). Un peso extra per le utenze `alta` è stato valutato e scartato: toglieva autonomia senza togliere guasti mancati.
+- **Margine di drift +0.05:** sposta la curva a destra (da 0.85 a 0.95, criticità ≤ 0.15) quando l'accuratezza recente scende sotto 0.80 (oggi attivo): HOTL 42%, guasti mancati in HOTL 5.
 - **SLA 30 min:** alla scadenza la decisione va in escalation, mai in esecuzione.
 - **Motivazione:** minimo 15 caratteri (bloccante); sotto i 30 viene segnalata (A4); una motivazione fotocopia (similarità ≥ 0.85) è respinta e conta in A4.
 - **Revisione rapida:** sotto i 10 secondi viene segnalata (A3), senza bloccare.
@@ -207,29 +208,32 @@ Sono riportate anche in `DichiarazioneDiOversight.md` §4.
 - La giustificazione completa è in `DichiarazioneDiOversight.md` §3.
 
 **Dove**
-- Scheda **Soglie & LLM**: le soglie sono modificabili con ID operatore e motivazione, e ogni modifica è registrata come `modifica_soglie` (`oversight_manager.py:734`).
+- Scheda **Soglie & LLM**: le soglie sono modificabili con ID operatore e motivazione, e ogni modifica è registrata come `modifica_soglie` (`oversight_manager.py:849`).
 
 ### "Come è definita la confidenza?"
 
 **Risposta**
-- `confidenza = max(p, 1−p)` (`oversight_manager.py:136`): misura quanto il modello è lontano dal "non so" (0.5).
-- **Limite:** non è un'incertezza calibrata. Per questo la affianchiamo a calibrazione per gruppo e drift.
+- **Meta-modello di affidabilità** (`modello_calibrato.py`, `MetaAffidabilita`): un secondo Random Forest, addestrato sul training set a prevedere se il modello (valutato out-of-fold) ha dato la risposta giusta. La confidenza è la sua stima di P(previsione corretta).
+- **Perché non `max(p, 1−p)`:** dipendeva solo da p, quindi nella matrice i punti stavano su due rette e R3/R4 erano di fatto una sola dimensione. Anche il disaccordo tra gli alberi del RandomForest è stato scartato: con foglie pure è esattamente `√(v(1−v))`, ancora una funzione di p.
+- **Perché il meta-modello non vede p:** con p tra gli input prevede meglio gli errori in generale (AUC 0.90), ma impara che "p basso = quasi sempre giusto" e lascia in autonomia fino a 27 guasti mancati. Usa quindi solo le caratteristiche dell'asset (pesano di più vibrazione, giorni dall'ultima manutenzione, età).
+- **Prova che funziona:** prevede gli errori con AUC 0.83 (contro 0.75 del metodo precedente basato sui 30 casi più simili) e sul test set l'accuratezza reale va dal 52% nel quartile di confidenza più basso al 100% in quello più alto. La correlazione con `max(p, 1−p)` è 0.83: in parte segue il rischio, ma i punti nella matrice restano sparsi.
+- **Limiti:** tra 0.6 e 0.8 è un po' ottimista (dichiara circa 0.75, ha ragione circa nel 63% dei casi); stima l'affidabilità da errori passati, non su situazioni mai viste. Per questo resta affiancata a calibrazione per gruppo e drift.
 
 ### "Mostrate la matrice di routing e dimostrate che il codice fa ciò che il documento promette."
 
 **Risposta**
-- La matrice R1–R8 è in `oversight_manager.py:160` (`MATRICE_ROUTING`, con condizione, livello e motivazione).
-- Il routing vero è scritto in modo **indipendente** in `route()` (`:317`).
-- Il KPI **A6** confronta le due implementazioni decisione per decisione (`verifica_routing`, `:363`). Target: 100%.
+- La matrice R1–R8 è in `oversight_manager.py:206` (`MATRICE_ROUTING`, con condizione, livello e motivazione). L'indice di criticità (`indice_criticita`, `PENDENZA_CRITICITA`) è a `:150`; la curva e le zone (`frontiera_hotl`, `zona_matrice`) a `:164` e `:169`.
+- Il routing vero è scritto in modo **indipendente** in `route()` (`:373`).
+- Il KPI **A6** confronta le due implementazioni decisione per decisione (`verifica_routing`, `:431`). Target: 100%.
 
 **Dove**
-- Scheda **Matrice confidenza × rischio**: ogni punto è una decisione, colorata per livello, con la regola nel tooltip.
+- Scheda **Matrice confidenza × rischio**: la curva f(P) divide la matrice per tutta l'altezza. A sinistra: zona rossa sopra la soglia di rischio 0.85 (HIC, R3) e zona gialla sotto (HITL, R4). A destra: zona verde (HOTL, R7) e, sopra 0.85, un'area tratteggiata in cui la decisione passa da HITL a HIC (R3). Ogni punto è una decisione, colorata per livello, con la regola nel tooltip: un punto di colore diverso dalla sua zona è stato deciso da una regola prioritaria (R1, R2, R5, R6, R8). Cliccandolo si apre la scheda completa della segnalazione. La scheda include la tabella R1–R8 valutata sui valori e sulle soglie in vigore al momento del routing: per ogni regola mostra se si applica e quale ha deciso il livello (`valutazione_routing` in `oversight_manager.py`).
 - `DichiarazioneDiOversight.md` §2.
 
 ### "Il revisore può approvare, modificare, rifiutare, fare escalation?"
 
 **Risposta**
-- Sì: `revisiona` (`oversight_manager.py:415`).
+- Sì: `revisiona` (`oversight_manager.py:521`).
 - **Modifica:** l'azione alternativa deve essere diversa da quella proposta. L'azione dell'AI resta registrata in `azione_originale`.
 - **Escalation:** la chiude solo un supervisore (`SUP-…`).
 - **Decisioni HIC:** può chiuderle solo un supervisore (revisori differenziati per competenza). Un operatore può solo metterle in escalation.
@@ -237,14 +241,14 @@ Sono riportate anche in `DichiarazioneDiOversight.md` §4.
 ### "Cosa succede alle decisioni HITL non revisionate entro lo SLA?"
 
 **Risposta**
-- `controlla_sla` (`oversight_manager.py:594`), eseguito a ogni polling della dashboard, le porta in **ESCALATION** con log `escalation_SLA`.
+- `controlla_sla` (`oversight_manager.py:707`), eseguito a ogni polling della dashboard, le porta in **ESCALATION** con log `escalation_SLA`.
 - Non vengono **mai** eseguite in silenzio.
 - KPI **A5**: escalation per SLA scaduto, target < 15%.
 
 ### "Ogni card mostra i 3 fattori in linguaggio da control room?"
 
 **Risposta**
-- Sì. I fattori sono calcolati con SHAP TreeExplainer (`explainer.py:296`, `:321`) e tradotti in valore, valori tipici, giudizio e direzione.
+- Sì. I fattori sono calcolati con SHAP TreeExplainer (`explainer.py:298`, `:323`) e tradotti in valore, valori tipici, giudizio e direzione.
 - Esempio: "età dell'asset 25 anni, sopra la norma (13–23): aumenta il rischio".
 - KPI **B1** (copertura ≥ 3 fattori) = 100%.
 
@@ -264,7 +268,7 @@ Sono riportate anche in `DichiarazioneDiOversight.md` §4.
 - Senza `.env`, o con `--senza-llm`, il sistema funziona interamente a template.
 
 **Dove**
-- `explainer.py:678` (`SpiegatoreLLM`), `app.py:194` (`_genera_spiegazione`), `app.py:205` (`_job_llm`).
+- `explainer.py:691` (`SpiegatoreLLM`), `app.py:200` (`_genera_spiegazione`), `app.py:211` (`_job_llm`).
 
 ### "Mostrate la calibrazione per gruppo, il drift nel tempo e il tasso di override per area."
 
@@ -274,16 +278,16 @@ Sono riportate anche in `DichiarazioneDiOversight.md` §4.
 - **Override per area:** C3, calcolato su rifiuti, modifiche e contestazioni HOTL.
 
 **Dove**
-- `bias_detector.py:98`, `:166`; `oversight_manager.py:993`.
+- `bias_detector.py:98`, `:166`; `oversight_manager.py:1108`.
 - Scheda **Fairness & drift**.
 
 ### "C'è almeno un alert automatico che modifica il routing?"
 
-**Risposta.** Sì, quattro (`app.py:220` → `oversight_manager.py:793`):
+**Risposta.** Sì, quattro (`app.py:226` → `oversight_manager.py:908`):
 1. C2 promuove l'area a HITL;
 2. il label bias promuove l'area a HITL;
 3. l'override ≥ 40% (C3) promuove l'area a HITL;
-4. il drift (C4) aggiunge +0.05 alla soglia di confidenza.
+4. il drift (C4) aggiunge +0.05 alla soglia di confidenza (la curva HOTL si sposta a destra).
 
 Promozioni e revoche sono registrate nel log. È possibile anche la promozione o revoca manuale con motivazione (scheda **Fairness & drift** → "Promuovi / revoca").
 
@@ -326,12 +330,12 @@ Promozioni e revoche sono registrate nel log. È possibile anche la promozione o
 
 | KPI | Domanda probabile | Risposta / dove si vede |
 |---|---|---|
-| **A1** | "Quante HIC/HITL sono state eseguite senza revisione?" | 0 per costruzione: `_motivo_non_eseguibile` (`oversight_manager.py:858`). Scheda **Monitoraggio KPI**. |
+| **A1** | "Quante HIC/HITL sono state eseguite senza revisione?" | 0 per costruzione: `_motivo_non_eseguibile` (`oversight_manager.py:973`). Scheda **Monitoraggio KPI**. |
 | **A2** | "Gli operatori approvano tutto?" | Tasso di override (rifiutate + modificate) / revisionate, target 5–40%. |
 | **A3** | "Quanto tempo dedicano alla revisione?" | Mediana tra apertura e chiusura della card; < 10 s segnalato (non bloccante), anche per revisore. |
 | **A4** | "Le motivazioni sono un rito?" | (motivazioni accettate sotto i 30 caratteri + **fotocopie respinte**) / (revisioni finali + fotocopie respinte), target < 10%. La fotocopia (similarità ≥ 0.85, numeri esclusi) **blocca** la revisione; colonna **Respinte** per revisore. |
-| **A5** | "La coda regge il carico?" | Escalation per SLA scaduto / HITL, target < 15%. Più il pannello carico di lavoro (`:1015`). |
-| **A6** | "Il codice rispetta la matrice dichiarata?" | % decisioni coerenti, target 100% (`:363`). |
+| **A5** | "La coda regge il carico?" | Escalation per SLA scaduto / HITL, target < 15%. Più il pannello carico di lavoro (`:1130`). |
+| **A6** | "Il codice rispetta la matrice dichiarata?" | % decisioni coerenti, target 100% (`:431`). |
 | **B1/B2** | "Ogni card ha spiegazione e incertezza?" | 100%: la spiegazione a template è garantita anche senza LLM. |
 | **B3b/B3c** | "Si sa da dove viene la spiegazione? L'LLM è stabile?" | Fonte su ogni card e nel log; tasso di fallback nella barra KPI. |
 | **B4** | "Quanti click per spiegazione, override, stop?" | Spiegazione 0 (è già sulla card), override 1 più la motivazione, stop 1 più la conferma. |
@@ -340,7 +344,7 @@ Promozioni e revoche sono registrate nel log. È possibile anche la promozione o
 | **D2** | "Il log è integro?" | Indicatore sempre visibile; "Simula manomissione". |
 | **D3** | "Quanto tempo serve per ricostruire una decisione?" | Pochi secondi con **Ricostruisci**, senza grep. |
 
-Calcolo dei KPI: `oversight_manager.py:879` (`kpi`), `app.py:432` (`monitoraggio`).
+Calcolo dei KPI: `oversight_manager.py:994` (`kpi`), `app.py:440` (`monitoraggio`).
 
 ---
 
@@ -386,17 +390,17 @@ Elenco completo: `DichiarazioneDiOversight.md` §8 e `audit_logger.py:19`.
 - Restano comunque visibili: i tentativi respinti (`rubber_stamping_bloccato` nell'audit trail, colonna **Respinte**), A3 (tempo di revisione), A4 (motivazioni brevi) e le statistiche per revisore.
 
 **"Un operatore può approvare una decisione HIC?"**
-- No: errore 403. Può solo metterla in escalation e la chiude un `SUP-…` (`oversight_manager.py:457`).
+- No: errore 403. Può solo metterla in escalation e la chiude un `SUP-…` (`oversight_manager.py:560`).
 
 **"Una richiesta da un altro sito può approvare decisioni?"**
-- No: le richieste diverse da GET con Origin diversa dall'host ricevono 403 (`app.py:593`).
+- No: le richieste diverse da GET con Origin diversa dall'host ricevono 403 (`app.py:595`).
 
 **"Dopo uno stop le azioni ripartono da sole?"**
 - No: le decisioni tornano in coda almeno HITL (R6), con log `sblocco_post_stop`.
 - Restano bloccate se ricadono in un altro stop ancora attivo.
 
 **"Le HOTL sfuggono all'umano?"**
-- No. Sono visibili in *Decisioni recenti* e si possono **contestare** ex post con motivazione (`oversight_manager.py:476`).
+- No. Sono visibili in *Decisioni recenti* e si possono **contestare** ex post con motivazione (`oversight_manager.py:582`).
 - Le contestazioni contano per l'override per area (C3), che può riportare l'intera area in HITL.
 
 **"Nascondere le escalation non è un rischio?"**

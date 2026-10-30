@@ -50,6 +50,8 @@ from typing import Optional
 
 import numpy as np
 
+from modello_calibrato import DESCRIZIONE_CONFIDENZA
+
 try:
     import requests
     from requests.adapters import HTTPAdapter
@@ -288,7 +290,7 @@ def _explainer_per(modello):
     with _LOCK_EXPLAINERS:
         ex = _EXPLAINERS.get(id(modello))
         if ex is None or ex[0] is not modello:
-            ex = (modello, shap.TreeExplainer(modello))
+            ex = (modello, shap.TreeExplainer(getattr(modello, "base", modello)))
             _EXPLAINERS[id(modello)] = ex
         return ex[1]
 
@@ -402,7 +404,9 @@ class SpiegatoreTemplate:
     @staticmethod
     def _incertezza(rec: dict) -> str:
         conf = float(rec["confidenza"])
-        parti = [f"Affidabilità della stima: {descrivi_confidenza(conf)} (confidenza {conf:.2f} su 1)."]
+        parti = [f"Affidabilità della stima: {descrivi_confidenza(conf)} (su asset con caratteristiche "
+                 f"simili, in passato il modello ha avuto ragione circa nel {_pct(conf)} dei casi; "
+                 f"confidenza {conf:.2f} su 1)."]
         livello, regola = rec.get("livello"), rec.get("regola")
         livello = getattr(livello, "value", livello)
         crit = rec.get("criticita_utenza", "")
@@ -410,18 +414,27 @@ class SpiegatoreTemplate:
             if regola == "R2":
                 parti.append(f"Ridurre il carico limita la fornitura a un'utenza {crit}: il sistema non "
                              "può agire da solo, decide un supervisore.")
+            elif regola == "R3":
+                soglia_r = _pct(rec.get("soglia_rischio", 0.85))
+                if rec.get("zona") == "verde_rischio":
+                    parti.append(f"Probabilità di guasto pari o sopra la soglia del {soglia_r}: il modello è "
+                                 "affidabile, ma con un guasto così probabile la decisione passa da HITL a HIC "
+                                 "e decide un supervisore.")
+                else:
+                    parti.append(f"Zona rossa: probabilità di guasto pari o sopra la soglia del {soglia_r} e "
+                                 "modello non abbastanza affidabile per questo rischio. Il sistema non può agire "
+                                 "da solo, decide un supervisore.")
             else:
                 parti.append(f"L'asset serve un'utenza {crit} (ospedali, servizi essenziali): il sistema "
                              "non può agire da solo, la decisione è interamente umana.")
-        elif regola == "R4" or (regola is None and conf < rec.get("soglia_confidenza", 0.80)):
+        elif regola == "R4" or (regola is None and rec.get("zona") == "gialla"):
             soglia = float(rec.get("soglia_confidenza", 0.80))
-            drift = (" (soglia alzata per il calo recente di accuratezza)"
+            cmin = rec.get("confidenza_minima") or soglia + 0.10 * float(rec["prob_guasto"])
+            drift = (" (curva spostata per il calo recente di accuratezza)"
                      if rec.get("margine_drift") else "")
-            parti.append(f"Confidenza sotto la soglia {soglia:.2f}{drift}: il modello è incerto su questo "
-                         "caso. Valutare un sopralluogo prima di decidere.")
-        elif regola == "R3":
-            parti.append(f"Il rischio supera la soglia del {_pct(rec.get('soglia_rischio', 0.60))}: "
-                         "l'azione parte solo se un operatore la approva.")
+            parti.append(f"Zona gialla: con un rischio del {_pct(rec['prob_guasto'])} la curva chiede una "
+                         f"confidenza di almeno {float(cmin):.2f}{drift}: il modello è incerto su questo caso. "
+                         "Valutare un sopralluogo prima di decidere.")
         elif regola == "R5":
             parti.append(f"L'area {rec['area_geografica']} è sotto osservazione: l'azione parte solo se un "
                          "operatore la approva.")
@@ -429,8 +442,8 @@ class SpiegatoreTemplate:
             parti.append("Decisione sospesa da un emergency stop e poi riattivata: serve la revisione di "
                          "un operatore.")
         elif livello == "HOTL":
-            parti.append("Rischio basso e azione leggera: il sistema agisce da solo e l'operatore può "
-                         "contestare l'esecuzione.")
+            parti.append("Zona verde (modello abbastanza affidabile per questo livello di rischio) e azione "
+                         "leggera: il sistema agisce da solo e l'operatore può contestare l'esecuzione.")
         else:
             parti.append("L'intervento proposto non è leggero: l'azione parte solo se un operatore la approva.")
         if rec.get("avviso_area"):
@@ -571,7 +584,7 @@ Regole vincolanti:
 2. Non cambiare la raccomandazione e non aggiungerne altre: nomina l'azione con il testo di "azione_proposta_testo".
 3. Cita il fattore principale (il primo di "fattori_principali") con il suo nome e il suo valore e di' se aumenta o riduce il rischio.
 4. Non usare gergo statistico (niente "SHAP", "feature", "coefficiente", "peso relativo", "il modello ha appreso").
-5. Esplicita sempre l'incertezza: riporta la confidenza; se il livello è HIC ricorda che decide l'operatore,
+5. Esplicita sempre l'incertezza: riporta la confidenza con il suo significato ("significato_confidenza"); se il livello è HIC ricorda che decide l'operatore,
    se è HITL che serve la sua approvazione; se "avviso_area" è presente, riportalo.
 6. Massimo 3 frasi per la spiegazione, 1-2 frasi per l'incertezza. Tono sobrio, nessuna enfasi.
 
@@ -813,8 +826,13 @@ class SpiegatoreLLM:
             "motivo_livello": rec.get("motivo_routing"),
             "probabilita_guasto_30gg": round(float(rec["prob_guasto"]), 2),
             "confidenza": round(float(rec["confidenza"]), 2),
+            "significato_confidenza": DESCRIZIONE_CONFIDENZA,
             "soglia_confidenza": rec.get("soglia_confidenza", 0.80),
-            "soglia_rischio": rec.get("soglia_rischio", 0.60),
+            "soglia_rischio": rec.get("soglia_rischio", 0.85),
+            "indice_criticita": rec.get("indice_criticita"),
+            "soglia_criticita": rec.get("soglia_criticita"),
+            "confidenza_minima_curva": rec.get("confidenza_minima"),
+            "zona_matrice": rec.get("zona"),
             "azione_proposta": rec["azione_proposta"],
             "azione_proposta_testo": AZIONI_TESTO.get(rec["azione_proposta"], rec["azione_proposta"]),
             "fattori_principali": [
@@ -920,7 +938,8 @@ class SpiegatoreLLM:
         # numeri ammessi: quelli del payload (anche dentro i testi, es. "AST-00412", "ultimi 5 anni"),
         # l'orizzonte di 30 giorni, "su 100" e il numero di fattori
         valori = [30.0, 100.0, float(len(fattori))]
-        for k in ("prob_guasto", "confidenza", "soglia_confidenza", "soglia_rischio"):
+        for k in ("prob_guasto", "confidenza", "soglia_confidenza", "soglia_rischio", "indice_criticita",
+                  "soglia_criticita", "confidenza_minima"):
             if rec.get(k) is not None:
                 valori.append(float(rec[k]))
         valori += [float(f.valore) for f in fattori]

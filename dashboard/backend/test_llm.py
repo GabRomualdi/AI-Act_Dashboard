@@ -52,10 +52,12 @@ def main(argv=None) -> int:
     asset = righe.iloc[0]
     X = prepara_feature(righe, colonne)
     prob = float(modello.predict_proba(X)[:, 1][0])
+    conf = (round(float(modello.confidenza(X)[0]), 3) if hasattr(modello, "confidenza")
+            else calcola_confidenza(prob))
     analisi = analizza_riga(modello, X.iloc[0], colonne)
 
     r = Raccomandazione(asset_id, asset["tipo_asset"], asset["area_geografica"], asset["criticita_utenza"],
-                        prob, calcola_confidenza(prob), azione_raccomandata(prob, float(asset["carico_pct"])),
+                        prob, conf, azione_raccomandata(prob, float(asset["carico_pct"])),
                         [(f.nome, f.contributo) for f in analisi.fattori], carico_pct=float(asset["carico_pct"]))
     manager = OversightManager(audit_logger=None)
     manager.route(r)

@@ -24,18 +24,33 @@ Una decisione rifiutata, bloccata o ancora in attesa non può raggiungerlo (test
 
 ## 2. Matrice di routing
 
+La soglia di confidenza è quella di default della guida (0.80); la soglia di rischio è stata portata a 0.85 e oltre quel valore la decisione diventa HIC (vedi §3). Riteniamo che siano coerenti con la guida tecnica e con il dominio.
+Modificare le soglie potrebbe essere utile per ridurre altri parametri (es. i costi di manutenzione, di intervento, ecc...) piuttosto che l'efficacia di Oversight.
 Le regole si leggono dall'alto in basso: **vale la prima che si applica**.
 
 | # | Condizione | Livello | Perché |
 |---|---|---|---|
 | **R1** | Utenza `critica` coinvolta (ospedali, infrastrutture essenziali) | **HIC** | Un errore può interrompere la fornitura a un'utenza critica. Il costo di un'azione sbagliata non è recuperabile: serve il veto umano assoluto e la competenza di un supervisore. |
 | **R2** | Azione `riduci_carico` su utenza `alta` o `critica` | **HIC** | Ridurre il carico significa limitare la fornitura a utenze sensibili. È una scelta di servizio, non solo tecnica: decide l'umano. |
-| **R3** | P(guasto) ≥ **0.60** (soglia di rischio) | **HITL** | Rischio alto: l'intervento proposto è oneroso (manutenzione, ispezione urgente). Serve un giudizio umano prima di agire. |
-| **R4** | Confidenza < **0.80** (0.85 con allerta di drift) | **HITL** | Il modello è incerto, oppure le sue performance recenti sono in calo: l'AI non può agire da sola. |
+| **R3** | P(guasto) ≥ **0.85** (soglia di rischio). A sinistra della curva f(P) è la **zona rossa**; a destra della curva l'azione non è mai leggera e la decisione passa da HITL a HIC | **HIC** | Guasto molto probabile: qualunque scelta, intervenire o non intervenire, ha conseguenze pesanti. Il sistema non può agire né restare inerte da solo: decide l'operatore, anche quando il modello è affidabile. |
+| **R4** | **Zona gialla**: confidenza sotto la curva f(P) = 0.80 + 0.10 × P(guasto) (0.85 + 0.10 × P con allerta di drift), cioè **criticità** = (1 − confidenza) + 0.10 × P(guasto) > **0.20** (0.15 con drift), e rischio sotto 0.85 | **HITL** | Il modello non è abbastanza affidabile per il rischio in gioco, oppure le sue performance recenti sono in calo: l'AI non può agire da sola. |
 | **R5** | Area **sotto osservazione** (allerta di calibrazione C2, label bias sospetto, override umano elevato C3, oppure promozione manuale) | **HITL** | Dove le performance del modello non sono affidabili, il sistema **si declassa da solo**. |
 | **R6** | Decisione sospesa da un emergency stop e poi riattivata | **HITL** (il livello non scende mai) | Dopo uno stop nessuna azione riparte in automatico. |
-| **R7** | Rischio basso, confidenza alta e azione leggera (`nessuna_azione` o `ispezione_routine`) | **HOTL** | L'errore costa poco ed è reversibile. Il sistema agisce e l'umano può contestare ex post. |
+| **R7** | **Zona verde** (confidenza sulla curva f(P) o a destra, rischio sotto 0.85) e azione leggera (`nessuna_azione` o `ispezione_routine`) | **HOTL** | L'errore costa poco ed è reversibile. Il sistema agisce e l'umano può contestare ex post. |
 | **R8** | Ogni altro caso | **HITL** | Rete di sicurezza: nel dubbio decide l'umano. |
+
+**Indice di criticità e zone della matrice.** R3, R4 e R7 sono calcolate da un'unica funzione di zona (`zona_matrice`) basata sulla curva f(P) = soglia di confidenza + 0.10 × P(guasto), che va da confidenza 0.80 con P(guasto) 0 a 0.90 con P(guasto) 1 e divide la matrice per tutta l'altezza. Più è alto il rischio, più affidabile deve essere il modello per agire da solo. La condizione criticità ≤ 0.20 è la stessa curva espressa come numero. Le zone sono:
+
+| Posizione | Rischio < 0.85 | Rischio ≥ 0.85 |
+|---|---|---|
+| Sotto la curva (confidenza < f(P)) | **gialla** → HITL (R4) | **rossa** → HIC (R3) |
+| Sulla curva o a destra | **verde** → HOTL se l'azione è leggera (R7) | area tratteggiata → HIC (R3: da HITL a HIC) |
+
+Le regole che non dipendono dalla posizione nella matrice hanno la priorità e si applicano in qualunque zona:
+- R1 (utenza critica) e R2 (riduzione carico su utenza alta/critica) portano sempre a HIC;
+- R5 (area sotto osservazione), R6 (riattivazione dopo uno stop) e R8 (azione non leggera) portano a HITL anche nella zona verde.
+
+Per il resto, il livello è quello della zona in cui cade il punto. Con l'allerta di drift la soglia di confidenza sale di 0.05 e l'intera curva si sposta a destra (da 0.85 a 0.95).
 
 ### 2.1 Politica delle azioni (input del routing)
 
@@ -46,7 +61,7 @@ L'azione proposta entra nel routing (R2, R7), quindi anche la politica delle azi
 | P1 | P ≥ 0.70 e carico ≥ 85% | `riduci_carico` |
 | P2 | P ≥ 0.75 | `ispezione_urgente` |
 | P3 | P ≥ 0.55 | `programma_manutenzione` |
-| P4 | P ≥ **0.35** (soglia decisionale) | `ispezione_routine` |
+| P4 | P ≥ **0.20** (soglia decisionale, probabilità calibrate) | `ispezione_routine` |
 | P5 | altrimenti | `nessuna_azione` |
 
 ---
@@ -55,13 +70,13 @@ L'azione proposta entra nel routing (R2, R7), quindi anche la politica delle azi
 
 | Parametro | Valore | Giustificazione |
 |---|---|---|
-| Soglia decisionale | **0.35** (invece di 0.50) | In questo dominio un **falso negativo** (guasto non previsto, magari su una cabina che serve un ospedale) costa molto più di un **falso positivo** (un'ispezione in più). Abbassare la soglia sposta l'errore sul lato meno grave. |
-| Soglia di rischio (R3) | **0.60** | Default della guida, mantenuto. Sopra 0.55 la politica propone già interventi onerosi. Da 0.60 in su la probabilità di guasto supera quella del "non guasto" con un margine sufficiente da giustificare sempre un giudizio umano. |
-| Confidenza | `max(p, 1−p)` | Misura la distanza del modello dal "non so" (0.5). È semplice, spiegabile a un non tecnico e coerente con la card ("il modello è sicuro al X%"). |
-| Soglia di confidenza (R4) | **0.80** | Con questa definizione, confidenza < 0.80 equivale a 0.20 < p < 0.80. Tutta la zona ambigua va all'umano. |
-| Margine di drift | **+0.05** (→ 0.85) | Si attiva automaticamente quando l'accuratezza delle ultime 2 settimane scende sotto 0.80 (oggi è 0.692). Se il modello peggiora, gli si lascia meno autonomia. |
+| Soglia decisionale | **0.20** su probabilità calibrate (equivale a 0.35 sul modello non calibrato; invece di 0.50) | In questo dominio un **falso negativo** (guasto non previsto, magari su una cabina che serve un ospedale) costa molto più di un **falso positivo** (un'ispezione in più). Abbassare la soglia sposta l'errore sul lato meno grave. |
+| Soglia di rischio (R3) | **0.85** → HIC | Sopra 0.75 la politica propone già un'ispezione urgente (o la riduzione del carico). Da 0.85 il guasto è molto probabile: sia agire sia non agire hanno conseguenze pesanti, quindi decide solo l'umano, anche se il modello è affidabile (a destra della curva la decisione passa da HITL a HIC). Sul test set R3 riguarda 5 asset su 720 (0.7%) non già coperti da R1/R2; HIC complessivo 9.3% (10% con soglia 0.80). Tra 0.55 e 0.85 l'azione proposta non è mai leggera, quindi quelle decisioni restano comunque HITL (R4 o R8): con 0.85 i 5 casi tra 0.80 e 0.85 passano da HIC a HITL e la quota HIC resta gestibile dai supervisori. |
+| Confidenza | **Meta-modello di affidabilità** (Random Forest) | Un secondo Random Forest (300 alberi, `min_samples_leaf=10`) è addestrato sul training set a prevedere se il modello, valutato out-of-fold alla soglia decisionale, ha dato la risposta giusta. La confidenza è la sua stima di P(previsione corretta). Usa solo le caratteristiche dell'asset, non p: con p tra gli input prevedeva meglio gli errori in generale (AUC 0.90) ma lasciava in autonomia fino a 27 guasti mancati, perché impara che "p basso = quasi sempre giusto". Sul test set prevede gli errori con AUC 0.83 (0.75 con i 30 casi più simili, metodo precedente) e l'accuratezza reale va dal 52% (quartile di confidenza più basso) al 100% (più alto). Fattori che pesano di più: vibrazione, giorni dall'ultima manutenzione, età. Limite: tra 0.6 e 0.8 è un po' ottimista (dichiara ~0.75, ha ragione ~0.63); una ricalibrazione non migliorava il Brier score (0.137 → 0.136) e non è stata applicata. |
+| Soglia di confidenza e curva HOTL (R4) | **0.80** a P(guasto) 0, **+0.10** fino a P(guasto) 1 (criticità ≤ 0.20) | 0.80 è il default della guida. La pendenza chiede più affidabilità quando il rischio sale. Sul test set i guasti non previsti che finiscono in HOTL senza revisione sono **9**, contro 16 della soglia piatta a 0.78, e gli errori eseguiti in autonomia sono **15**, contro 29. HOTL è al 49% (54% con la soglia piatta, 63% con il vecchio `max(p, 1−p)`). Altri punti di partenza della curva: a 0.78 i guasti mancati sarebbero 15 (HOTL 52%); a 0.83 scenderebbero a 6, ma con HOTL al 46%, cioè più carico sui revisori, il che favorisce il rubber-stamping (KPI A3/A4). Un peso d'impatto per le utenze `alta` (×1.25) è stato valutato e scartato: riduceva l'HOTL di quelle utenze dal 51% al 45% senza togliere nessun guasto mancato (uno solo è su utenza alta). |
+| Margine di drift | **+0.05** (curva da 0.85 a 0.95, criticità ≤ 0.15) | Si attiva automaticamente quando l'accuratezza delle ultime 2 settimane scende sotto 0.80 (oggi è 0.692). Se il modello peggiora, gli si lascia meno autonomia: HOTL scende al 42%, i guasti mancati in HOTL a 5 e gli errori in autonomia a 7. |
 | SLA HITL | **30 min** | La coda è dimensionata per la demo. Alla scadenza la decisione va in `ESCALATION` e **non viene mai eseguita in silenzio** (KPI A5). |
-| Motivazione minima | **15 caratteri** e almeno 2 parole significative | Requisito della guida. Testi come `""` o `"ok"` vengono rifiutati (test T2). Sotto i 30 caratteri la revisione viene segnalata, non bloccata (KPI A4). Se la motivazione è una "fotocopia" (quasi identica, similarità ≥ 0.85, a una già usata per un'altra decisione, anche cambiando solo l'ID asset) la revisione è **bloccata**: errore 400, la decisione resta in coda e non viene eseguita, il tentativo è registrato come `rubber_stamping_bloccato` e conta in A4. Il controllo è solo testuale: una parafrasi semantica non viene intercettata. Le escalation non sono bloccate. |
+| Motivazione minima | **15 caratteri** e almeno 2 parole significative | Requisito della guida. Testi come `""` o `"ok"` vengono rifiutati (test T2). Sotto i 30 caratteri la revisione viene segnalata, non bloccata (KPI A4). Se la motivazione è una "fotocopia" (quasi identica, similarità ≥ 0.85, a una già usata per un'altra decisione, anche cambiando solo l'ID asset) la revisione è **bloccata**: errore 400, la decisione resta in coda e non viene eseguita, il tentativo è registrato come `rubber_stamping_bloccato` e conta in A4 (una sola volta per la stessa decisione e lo stesso revisore: i ritentativi restano nell'audit trail con `ripetizione: true` ma non gonfiano i KPI). Il controllo è solo testuale: una parafrasi semantica non viene intercettata. Le escalation non sono bloccate. |
 | Revisione rapida | **< 10 s** | Una revisione così veloce indica un'approvazione senza lettura: viene segnalata per revisore (KPI A3). |
 | Allerta gap di recall (C1) | **> 0.15** | Soglia indicata dalla guida e dagli indicatori di qualità. |
 | Allerta calibrazione (C2) | **> 0.10** in un singolo gruppo | Una divergenza in un solo gruppo è l'indizio tipico di label bias storico. |
@@ -79,7 +94,7 @@ Ogni modifica alle soglie fatta dalla dashboard richiede ID operatore e motivazi
 ## 4. Bias identificati e come incidono sul routing
 
 Le guide indicano tre bias da cercare. Tutti i numeri qui sotto sono calcolati dal `BiasDetector` sul test set
-(720 asset, accuracy 0.783, recall 0.744).
+(720 asset, accuracy 0.774, recall 0.752).
 
 ### Bias 1 – Label bias storico: sotto-segnalazione dei guasti al Sud (Art. 10)
 
@@ -115,7 +130,7 @@ L'area geografica è segnalata dalla guida come *"possibile variabile proxy"*: �
 - **Per tipo di asset** il gap di recall è 0.141 (trasformatore 0.698 contro turbina eolica 0.839): sotto soglia, ma vicino.
 - **Mitigazioni.**
   - Allerta C1 sempre visibile nel pannello bias.
-  - Soglia decisionale bassa (0.35) e routing più severo con il drift.
+  - Soglia decisionale bassa (0.20, probabilità calibrate) e routing più severo con il drift.
   - **Misura prima/dopo:** i guasti reali che finirebbero in HOTL scendono **da 9 a 3** (Nord 4→2, Centro 3→1, Sud 1→0, Isole 1→0).
 - **Scelta dichiarata.** Il C1 **non** promuove automaticamente le aree. Tre aree su quattro superano la soglia: promuoverle
   tutte eliminerebbe di fatto l'HOTL e scaricherebbe sugli operatori una coda insostenibile (rischio A5 e rubber-stamping). Un
@@ -159,7 +174,7 @@ Il rischio è che l'operatore approvi "perché lo dice l'AI".
 | Gap di calibrazione > 0.10 in un'area (C2) | Area promossa a HITL (R5) |
 | Label bias sospetto (tasso registrato molto sotto quello atteso dal profilo) | Area promossa a HITL (R5) |
 | Override umano ≥ 40% su almeno 5 giudizi in un'area (C3) | Area promossa a HITL (R5) |
-| Drift: accuratezza recente < 0.80 (C4) | Soglia di confidenza +0.05 (R4 più severa) |
+| Drift: accuratezza recente < 0.80 (C4) | Soglia di confidenza +0.05: la curva HOTL si sposta a destra (R4 più severa) |
 | Gap di recall > 0.15 (C1) | Solo allerta visibile; promozione manuale a discrezione del supervisore |
 
 Ogni promozione e ogni revoca viene registrata dal sistema nell'audit trail. Quando la condizione rientra, la promozione automatica viene revocata.

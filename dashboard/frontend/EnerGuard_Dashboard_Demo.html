@@ -120,6 +120,21 @@ tr.alert td{background:#2A1A10}
 .pill.bad{background:var(--hic-d);color:#FFB3A8;border:1px solid var(--hic)}
 .pill.warn{background:var(--hitl-d);color:var(--hitl);border:1px solid var(--hitl)}
 .pill.ok{background:#14332F;color:var(--hotl);border:1px solid var(--hotl)}
+/* gruppi KPI (tinte tenui, basso contrasto) */
+tr.kgh td{font-weight:800;font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;padding:9px 8px;border-left:4px solid}
+tr.kgh.kga td{background:#16303C;border-left-color:#5E8CA8;color:#9CC4DE}
+tr.kgh.kgb td{background:#14332F;border-left-color:var(--hotl);color:#9BE0D3}
+tr.kgh.kgc td{background:#2E2612;border-left-color:#C79A55;color:#E0C08A}
+tr.kgh.kgd td{background:#2A2338;border-left-color:#8B7FB8;color:#C2B8E8}
+tr.kga td{border-left:4px solid #16303C}
+tr.kgb td{border-left:4px solid #14332F}
+tr.kgc td{border-left:4px solid #2E2612}
+tr.kgd td{border-left:4px solid #2A2338}
+.qm{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;margin-left:6px;border-radius:50%;border:1px solid var(--mut);color:var(--mut);font-size:.72rem;font-weight:700;cursor:help;vertical-align:1px;user-select:none}
+.qm:hover,.qm:focus-visible{border-color:var(--focus);color:var(--focus)}
+#kpiTip{position:fixed;z-index:200;max-width:380px;background:#0A151B;color:var(--txt);border:1px solid var(--focus);border-radius:8px;padding:10px 12px;font-size:.82rem;line-height:1.45;box-shadow:0 8px 30px rgba(0,0,0,.55);pointer-events:none;display:none}
+#kpiTip b{color:var(--focus);display:block;margin-bottom:3px}
+#kpiTip i{display:block;margin-top:6px;font-style:normal;color:var(--mut)}
 .bignote{border:1px solid var(--hitl);background:var(--hitl-d);border-radius:6px;padding:12px 14px;font-size:.92rem;margin-top:12px;color:#FBE5C0}
 .bignote b{color:var(--hitl)}
 .legend{display:flex;gap:16px;margin-top:8px;font-size:.8rem;flex-wrap:wrap}
@@ -169,6 +184,20 @@ a.btn{display:inline-flex;align-items:center;text-decoration:none;color:var(--tx
 .dinp{width:100%;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:9px;margin-top:4px;color:var(--txt)}
 dialog#dlgOff,dialog#dlgReset{border-color:var(--hitl)}
 dialog#dlgOff h2,dialog#dlgReset h2{color:var(--hitl)}
+dialog#dlgDec{max-width:900px;max-height:90vh;overflow:auto}
+dialog#dlgDec h2{color:var(--txt);display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+dialog#dlgDec h3{font-size:.78rem;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);margin:16px 0 6px}
+.kvg{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px 16px;font-size:.88rem}
+.kvg span{display:block;font-size:.72rem;color:var(--mut);text-transform:uppercase;letter-spacing:.05em}
+.rsum{padding:10px 12px;border-radius:6px;border-left:4px solid var(--line);margin-bottom:8px}
+.rsum.hic,.rtab tr.dec.hic td{background:var(--hic-d);border-color:var(--hic)}
+.rsum.hitl,.rtab tr.dec.hitl td{background:var(--hitl-d);border-color:var(--hitl)}
+.rsum.hotl,.rtab tr.dec.hotl td{background:var(--hotl-d);border-color:var(--hotl)}
+.rtab tr.dec td{font-weight:700}
+.rtab tr.dopo td{opacity:.5}
+.rtab td:first-child{white-space:nowrap}
+#matrix circle[data-dec]{cursor:pointer}
+#matrix circle[data-dec]:hover,#matrix circle[data-dec]:focus{stroke:#fff;stroke-width:2.5;outline:none}
 </style>
 </head>
 <body>
@@ -261,7 +290,7 @@ dialog#dlgOff h2,dialog#dlgReset h2{color:var(--hitl)}
           <span><i style="background:var(--hitl)"></i>HITL · approvazione umana</span>
           <span><i style="background:var(--hotl)"></i>HOTL · auto-eseguite, monitorate</span>
         </div>
-        <p class="note">Confidenza = max(P, 1−P). Le soglie sono quelle applicate dal backend (incluso l'eventuale margine per il drift). Utenza critica (R1), riduzione carico su utenza alta/critica (R2) e aree sotto osservazione (R5) forzano HIC/HITL a prescindere dalla posizione. Coerenza matrice/codice: KPI A6.</p>
+        <p class="note">Confidenza = probabilità che la previsione sia corretta, stimata da un secondo Random Forest addestrato sugli errori passati del modello (usa le caratteristiche dell'asset, non P: per questo i punti sono sparsi). Il routing segue la <b>curva f(P) = soglia di confidenza + 0.10 × P(guasto)</b> (con i default da confidenza 0.80 a P 0 fino a 0.90 a P 1), che divide la matrice per tutta l'altezza. A destra della curva c'è la zona verde (HOTL, R7). A sinistra c'è la zona rossa se il rischio è pari o sopra la soglia (default 0.85: HIC, R3), altrimenti la zona gialla (HITL, R4). A destra della curva, con rischio pari o sopra la soglia (area tratteggiata), l'azione non è mai leggera e la decisione passa da HITL a HIC. Più alto è il rischio, più affidabile deve essere il modello. L'indice di <b>criticità</b> = (1 − confidenza) + 0.10 × P(guasto) è la stessa curva espressa come numero. Le soglie sono quelle applicate dal backend (con il drift la curva si sposta a destra). Le regole prioritarie valgono a prescindere dalla zona: utenza critica (R1), riduzione carico su utenza alta/critica (R2), aree sotto osservazione (R5), riattivazione dopo uno stop (R6) e azioni non leggere (R8). Coerenza matrice/codice: KPI A6. <b>Clic su un punto</b> (o Invio da tastiera) per i dettagli della segnalazione e il perché del suo livello.</p>
         <div id="regole"></div>
       </div>
     </section>
@@ -343,8 +372,8 @@ dialog#dlgOff h2,dialog#dlgReset h2{color:var(--hitl)}
         <div class="phead"><h2>Soglie di routing</h2><span class="art">KPI A6 · COERENZA DOCUMENTO / CODICE</span></div>
         <div class="pbody">
           <div class="settings">
-            <label>Soglia di confidenza (sotto → HITL) <input type="range" id="thConf" min="0.5" max="0.99" step="0.01" value="0.80"><output id="oConf">0.80</output></label>
-            <label>Soglia di rischio (pari o sopra → HITL) <input type="range" id="thRisk" min="0.3" max="0.95" step="0.01" value="0.60"><output id="oRisk">0.60</output></label>
+            <label>Confidenza minima a P(guasto) 0 (inizio curva HOTL; a P 1 serve +0.10) <input type="range" id="thConf" min="0.5" max="0.99" step="0.01" value="0.80"><output id="oConf">0.80</output></label>
+            <label>Soglia di rischio (pari o sopra → HIC) <input type="range" id="thRisk" min="0.3" max="0.95" step="0.01" value="0.85"><output id="oRisk">0.85</output></label>
             <label>SLA revisione (minuti) <input type="number" id="thSla" min="1" max="240" value="30"></label>
           </div>
           <div class="filters" style="margin-top:10px">
@@ -352,7 +381,7 @@ dialog#dlgOff h2,dialog#dlgReset h2{color:var(--hitl)}
             <button class="btn" id="btnSoglie">Applica soglie</button>
           </div>
           <p class="note" id="sogNote"></p>
-          <p class="note">Regole: R1 utenza critica → HIC · R2 riduzione carico su utenza alta/critica → HIC · R3 P(guasto) ≥ soglia rischio → HITL · R4 confidenza &lt; soglia → HITL · R5 area sotto osservazione → HITL · R6 dopo uno stop → HITL · R7 azione leggera, rischio basso, confidenza alta → HOTL · R8 altrimenti HITL. Le nuove soglie valgono per le nuove decisioni; ogni modifica è nel log.</p>
+          <p class="note">Curva f(P) = confidenza minima + 0.10 × P(guasto) (da 0.80 a P 0 fino a 0.90 a P 1 con i default); equivale a criticità = (1 − confidenza) + 0.10 × P(guasto) entro 1 − confidenza minima. Regole: R1 utenza critica → HIC · R2 riduzione carico su utenza alta/critica → HIC · R3 P(guasto) ≥ soglia rischio → HIC (zona rossa a sinistra della curva; a destra la decisione passa da HITL a HIC) · R4 sotto la curva → HITL (zona gialla) · R5 area sotto osservazione → HITL · R6 dopo uno stop → HITL · R7 zona verde e azione leggera → HOTL · R8 altrimenti HITL. Le nuove soglie valgono per le nuove decisioni; ogni modifica è nel log.</p>
         </div>
       </section>
       <section class="panel">
@@ -395,11 +424,18 @@ dialog#dlgOff h2,dialog#dlgReset h2{color:var(--hitl)}
   <input id="resetMot" class="dinp" maxlength="300" value="">
   <div class="row"><button id="resetNo">Annulla</button><button class="danger" id="resetYes">Archivia e riparti</button></div>
 </dialog>
+<dialog id="dlgDec" aria-labelledby="decTitle">
+  <h2 id="decTitle"></h2>
+  <div id="decBody"></div>
+  <div class="row"><button id="decClose">Chiudi</button></div>
+</dialog>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div id="kpiTip" role="tooltip"></div>
 
 <script>
 /* EnerGuard - la pagina e' solo una vista: tutte le regole stanno nel backend (app.py). */
 const $=s=>document.querySelector(s);
+const MINREV=()=>Math.max(30,(CFG&&CFG.min_motivazione_revisione)||0);
 const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const pct=x=>x==null?"–":Math.round(x*100)+"%";
 const n2=x=>x==null?"–":(+x).toFixed(2);
@@ -474,7 +510,7 @@ function dettagliHTML(d){
 }
 function cardHTML(d){
   const lv=d.livello.toLowerCase(), s=d.spiegazione_operativa||{}, sup=d.richiede_supervisore;
-  const mot=drafts[d.id]||"", ok=mot.trim().length>=CFG.min_motivazione;
+  const mot=drafts[d.id]||"", ok=mot.trim().length>=MINREV();
   const aperta=espanse.has(d.id)||!!errori[d.id];
   return `<article class="card ${lv} ${aperta?"open":""}" data-card="${d.id}" aria-labelledby="h-${d.id}">
     <div class="chead" data-toggle="${d.id}" role="button" tabindex="0" aria-expanded="${aperta}" title="Clicca per espandere/comprimere"><span class="chev" aria-hidden="true">▸</span><div><span class="cid" id="h-${d.id}">${esc(d.asset_id)}</span> <span class="tag ${lv}">${d.livello==="HIC"?"HIC · veto umano":"HITL · serve approvazione"}</span> <span class="mono rg">${esc(d.regola)}</span>
@@ -482,14 +518,15 @@ function cardHTML(d){
           <div class="cbody">
           <div class="nums"><div>P(guasto 30gg) <b style="color:${d.prob_guasto>=ST.soglie.soglia_rischio?"var(--hic)":"var(--txt)"}">${pct(d.prob_guasto)}</b></div>
       <div>Confidenza <b>${n2(d.confidenza)} · ${esc(d.descrizione_confidenza)}</b></div>
+      <div title="Curva f(P) = soglia di confidenza + 0.10 × P(guasto). Criticità = (1 − confidenza) + 0.10 × P(guasto): oltre la soglia la decisione è sotto la curva e non può essere automatica">Zona <b style="color:${d.zona==="gialla"?"var(--hitl)":d.zona==="rossa"||d.zona==="verde_rischio"?"var(--hic)":"var(--txt)"}">${esc(ZONA(d.zona))}</b>${d.confidenza_minima!=null?` · curva ${n2(d.confidenza_minima)}`:""} · criticità ${n2(d.indice_criticita)}${d.soglia_criticita!=null?` / ${n2(d.soglia_criticita)}`:""}</div>
       <div>Azione proposta <b>${esc(AZ(d.azione_proposta))}</b></div></div>
     <div class="exp"><b>Perché:</b> ${esc(s.testo)}<span class="unc">${esc(s.incertezza)}</span>
       <span class="src">${fonteTesto(d)}</span></div>
     ${dettagliHTML(d)}
     <div class="acts">
       <div class="mot"><label for="m-${d.id}" class="sr">Motivazione</label>
-        <textarea id="m-${d.id}" data-id="${d.id}" placeholder="Motivazione obbligatoria (min ${CFG.min_motivazione} caratteri): cosa hai verificato su questa decisione…">${esc(mot)}</textarea>
-        <small id="c-${d.id}" class="${ok?"":"ko"}">${mot.trim().length} / ${CFG.min_motivazione} caratteri${ok?" · motivazione valida":" · i pulsanti si sbloccano con la motivazione"}</small>
+        <textarea id="m-${d.id}" data-id="${d.id}" placeholder="Motivazione obbligatoria (min ${MINREV()} caratteri): cosa hai verificato su questa decisione…">${esc(mot)}</textarea>
+        <small id="c-${d.id}" class="${ok?"":"ko"}">${mot.trim().length} / ${MINREV()} caratteri${ok?" · motivazione valida":" · i pulsanti si sbloccano con la motivazione"}</small>
         ${sup?`<small class="supn">Chiusura riservata a un supervisore (ID ${esc(CFG.prefisso_supervisore)}…): un operatore può solo mettere in escalation.</small>`:""}
         <div class="modsel ${modAperta.has(d.id)?"show":""}" id="ms-${d.id}"><label for="s-${d.id}" style="font-size:.85rem;color:var(--mut)">Nuova azione</label>
           <select id="s-${d.id}">${CFG.azioni.filter(a=>a!==d.azione_proposta).map(a=>`<option value="${a}">${esc(AZ(a))}</option>`).join("")}</select></div>
@@ -540,29 +577,98 @@ function renderStops(){
 }
 
 /* ===================== MATRICE ===================== */
+const ZONA=z=>({verde:"verde",verde_rischio:"verde sopra la soglia di rischio (→ HIC)",rossa:"rossa",gialla:"gialla"})[z]||"–";
 function renderMatrix(){
-  const W=760,H=380,L=60,T=20,R=20,B=48, so=ST.soglie, thC=so.soglia_confidenza_effettiva, thR=so.soglia_rischio;
-  const x=c=>L+(c-0.5)/(0.5)*(W-L-R), y=p=>T+(1-p)*(H-T-B);
-  const xc=x(thC), yr=y(thR);
-  const pts=ST.decisioni.filter(d=>d.livello).map(d=>{const q=d.stato==="IN_ATTESA"||d.stato==="ESCALATION";
-    return `<circle cx="${x(d.confidenza).toFixed(1)}" cy="${y(d.prob_guasto).toFixed(1)}" r="${q?6:4}" fill="var(--${d.livello.toLowerCase()})" stroke="${q?"#fff":"none"}" stroke-width="1.2" opacity="${d.stato==="BLOCCATA_STOP"?.35:1}" tabindex="0" role="img" aria-label="${esc(d.asset_id)}, ${d.livello}, rischio ${n2(d.prob_guasto)}, confidenza ${n2(d.confidenza)}, ${d.regola}, ${d.stato}"><title>${esc(d.asset_id)} · ${d.livello} (${d.regola}) · rischio ${n2(d.prob_guasto)} · conf ${n2(d.confidenza)} · ${d.stato}</title></circle>`}).join("");
-  $("#matrix").innerHTML=`<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Matrice confidenza-rischio con zone di routing">
-    <rect x="${L}" y="${T}" width="${W-L-R}" height="${yr-T}" fill="var(--hic-d)" opacity=".85"/>
-    <rect x="${L}" y="${yr}" width="${xc-L}" height="${H-B-yr}" fill="var(--hitl-d)" opacity=".85"/>
-    <rect x="${xc}" y="${yr}" width="${W-R-xc}" height="${H-B-yr}" fill="var(--hotl-d)" opacity=".9"/>
-    <text x="${L+10}" y="${T+20}" fill="var(--hic)" font-size="14" font-weight="700">Rischio alto (R3): serve l'umano</text>
-    <text x="${L+10}" y="${yr+20}" fill="var(--hitl)" font-size="14" font-weight="700">Confidenza bassa (R4): HITL</text>
-    <text x="${xc+10}" y="${H-B-12}" fill="var(--hotl)" font-size="14" font-weight="700">HOTL se azione leggera (R7)</text>
+  const W=760,H=380,L=60,T=20,R=20,B=48,PAD=8, so=ST.soglie, thC=so.soglia_confidenza_effettiva, thR=so.soglia_rischio,
+    kC=so.pendenza_criticita||0.1;
+  const dec=ST.decisioni.filter(d=>d.livello), cl=(v,a,b)=>Math.min(b,Math.max(a,v));
+  // asse X dinamico: la confidenza del meta-modello puo' scendere sotto 0.5
+  const x0=cl(Math.floor(Math.min(0.5,thC,...dec.map(d=>d.confidenza))*10)/10,0,0.5);
+  const xu=c=>L+PAD+(c-x0)/(1-x0)*(W-L-R-2*PAD), yu=p=>T+PAD+(1-p)*(H-T-B-2*PAD);
+  const x=c=>xu(cl(c,x0,1)), y=p=>yu(cl(p,0,1));
+  const yr=y(thR), cur=p=>`${xu(thC+kC*p).toFixed(1)},${yu(p).toFixed(1)}`;
+  // curva f(P) = soglia + pendenza x P(guasto) per tutta l'altezza: a destra la zona verde, a sinistra rossa
+  // (P >= soglia di rischio) o gialla. A destra sopra la soglia di rischio la decisione passa comunque a HIC (R3).
+  const pB=-PAD/(H-T-B-2*PAD), pT=1+PAD/(H-T-B-2*PAD), verde=`${cur(pB)} ${cur(thR)} ${2*W},${yr.toFixed(1)} ${2*W},${H-B}`,
+    angolo=`${cur(thR)} ${cur(pT)} ${2*W},${T} ${2*W},${yr.toFixed(1)}`;
+  const xTop=Math.min(xu(thC+kC*thR),W-R), xAng=(Math.min(xu(thC+kC*(thR+1)/2),W-R)+W-R)/2;
+  const tacche=(a,b)=>{const r=[];for(let i=Math.round(a*10);i<=Math.round(b*10);i++)r.push(i/10);return r};
+  const assi=tacche(x0,1).map(v=>`<line x1="${x(v).toFixed(1)}" y1="${H-B}" x2="${x(v).toFixed(1)}" y2="${H-B+5}" stroke="var(--mut)"/><text x="${x(v).toFixed(1)}" y="${H-B+18}" fill="var(--mut)" font-size="11" text-anchor="middle">${v.toFixed(1)}</text>`).join("")
+    +tacche(0,1).map(v=>`<line x1="${L-5}" y1="${y(v).toFixed(1)}" x2="${L}" y2="${y(v).toFixed(1)}" stroke="var(--mut)"/><text x="${L-8}" y="${(y(v)+4).toFixed(1)}" fill="var(--mut)" font-size="11" text-anchor="end">${v.toFixed(1)}</text>`).join("");
+  const pts=dec.map(d=>{const q=d.stato==="IN_ATTESA"||d.stato==="ESCALATION";
+    return `<circle data-dec="${esc(d.id)}" cx="${x(d.confidenza).toFixed(1)}" cy="${y(d.prob_guasto).toFixed(1)}" r="${q?6:4}" fill="var(--${d.livello.toLowerCase()})" stroke="${q?"#fff":"none"}" stroke-width="1.2" opacity="${d.stato==="BLOCCATA_STOP"?.35:1}" tabindex="0" role="button" aria-haspopup="dialog" aria-label="${esc(d.asset_id)}, ${d.livello}, rischio ${n2(d.prob_guasto)}, confidenza ${n2(d.confidenza)}, zona ${esc(ZONA(d.zona))}, ${d.regola}, ${d.stato}. Apri i dettagli"><title>${esc(d.asset_id)} · ${d.livello} (${d.regola}) · rischio ${n2(d.prob_guasto)} · conf ${n2(d.confidenza)} (curva ${n2(d.confidenza_minima)}) · zona ${esc(ZONA(d.zona))} · ${d.stato} · clic per i dettagli</title></circle>`}).join("");
+  $("#matrix").innerHTML=`<svg viewBox="0 0 ${W} ${H}" width="100%" role="group" aria-label="Matrice confidenza-rischio con zone di routing: ogni punto è una decisione, apribile per i dettagli">
+    <defs><clipPath id="mxClip"><rect x="${L}" y="${T}" width="${W-L-R}" height="${H-B-T}"/></clipPath>
+      <pattern id="mxHatch" width="9" height="9" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="9" height="9" fill="var(--hotl-d)"/><rect width="4" height="9" fill="var(--hic-d)"/></pattern></defs>
+    <g clip-path="url(#mxClip)">
+      <rect x="${L}" y="${T}" width="${W-L-R}" height="${yr-T}" fill="var(--hic-d)" opacity=".85"/>
+      <rect x="${L}" y="${yr}" width="${W-L-R}" height="${H-B-yr}" fill="var(--hitl-d)" opacity=".85"/>
+      <polygon points="${verde}" fill="var(--hotl-d)" opacity=".9"><title>Zona verde: confidenza sulla curva o a destra, rischio sotto ${thR.toFixed(2)} → HOTL se l'azione è leggera (R7)</title></polygon>
+      <polygon points="${angolo}" fill="url(#mxHatch)"><title>A destra della curva ma con rischio ≥ ${thR.toFixed(2)}: l'azione non è mai leggera, la decisione passa da HITL a HIC (R3)</title></polygon>
+      <polyline points="${cur(pB)} ${cur(pT)}" fill="none" stroke="var(--hotl)" stroke-width="1.6" stroke-dasharray="6 4"/>
+    </g>
+    <text x="${L+10}" y="${T+20}" fill="var(--hic)" font-size="14" font-weight="700">Zona rossa · rischio ≥ ${thR.toFixed(2)} (R3): HIC, decide solo l'umano</text>
+    <text x="${L+10}" y="${yr+20}" fill="var(--hitl)" font-size="14" font-weight="700">Zona gialla · sotto la curva (R4): HITL</text>
+    <text x="${W-R-10}" y="${yu(0.45).toFixed(1)}" fill="var(--hotl)" font-size="14" font-weight="700" text-anchor="end">Zona verde<tspan x="${W-R-10}" dy="17">R7: HOTL</tspan></text>
+    ${W-R-xTop>48?`<text x="${xAng.toFixed(1)}" y="${((T+yr)/2+4).toFixed(1)}" fill="#FFB3A8" font-size="10" font-weight="700" text-anchor="middle">HITL→HIC</text>`:""}
+    <text x="${(xTop-6).toFixed(1)}" y="${yr+16}" fill="var(--mut)" font-size="11" text-anchor="end">curva f(P) = ${thC.toFixed(2)} + ${kC.toFixed(2)}·P: conf ${thC.toFixed(2)} → ${(thC+kC).toFixed(2)}${so.margine_drift?" (drift +"+so.margine_drift+")":""}</text>
     <line x1="${L}" y1="${H-B}" x2="${W-R}" y2="${H-B}" stroke="var(--line)"/><line x1="${L}" y1="${T}" x2="${L}" y2="${H-B}" stroke="var(--line)"/>
-    <line x1="${xc}" y1="${yr}" x2="${xc}" y2="${H-B}" stroke="var(--mut)" stroke-dasharray="5 4"/><line x1="${L}" y1="${yr}" x2="${W-R}" y2="${yr}" stroke="var(--mut)" stroke-dasharray="5 4"/>
-    <text x="${xc+4}" y="${yr+14}" fill="var(--mut)" font-size="11">conf ${thC.toFixed(2)}${so.margine_drift?" (drift +"+so.margine_drift+")":""}</text>
-    <text x="${W-R-80}" y="${yr-5}" fill="var(--mut)" font-size="11">rischio ${thR.toFixed(2)}</text>
+    ${assi}
+    <line x1="${L}" y1="${yr}" x2="${W-R}" y2="${yr}" stroke="var(--mut)" stroke-dasharray="5 4"/>
     <text x="${(W+L)/2}" y="${H-12}" fill="var(--mut)" font-size="12" text-anchor="middle">Confidenza del modello →</text>
     <text x="16" y="${(H-B+T)/2}" fill="var(--mut)" font-size="12" text-anchor="middle" transform="rotate(-90 16 ${(H-B+T)/2})">P(guasto) →</text>
     ${pts}</svg>`;
   const reg=ST.kpi.distribuzione_regole;
   $("#regole").innerHTML=`<p class="note">Decisioni per regola: ${Object.keys(reg).sort().map(r=>`<b>${r}</b> ${reg[r]}`).join(" · ")} · livelli: ${Object.entries(ST.kpi.distribuzione_livelli).map(([k,v])=>`${k} ${v}`).join(" · ")}</p>`;
+  if(decAperta&&$("#dlgDec").open) riempiDettaglio();
 }
+
+/* ===================== DETTAGLIO DECISIONE (clic sulla matrice) ===================== */
+let decAperta=null;
+const LIV_TESTO={HIC:"decide solo l'umano (veto)",HITL:"serve l'approvazione umana prima di agire",HOTL:"il sistema agisce, l'umano monitora e può contestare"};
+const dt=s=>s?new Date(s).toLocaleString("it-IT"):"–";
+function routingHTML(d){
+  const v=d.valutazione_routing||[], k=v.findIndex(r=>r.decisiva), dec=v[k];
+  if(!v.length) return `<div class="rsum ${d.livello.toLowerCase()}"><b>Perché ${esc(d.livello)}:</b> ${esc(d.motivo_routing)}</div>`;
+  return `<div class="rsum ${d.livello.toLowerCase()}"><b>Perché ${esc(d.livello)} (${esc(LIV_TESTO[d.livello]||"")}):</b> ${esc(d.motivo_routing)}${dec?`<br><span class="note">${esc(dec.id)}: ${esc(dec.perche)}</span>`:""}</div>
+    <table class="mini rtab"><thead><tr><th>Regola</th><th>Condizione</th><th>Valori di questa decisione</th><th>Esito</th></tr></thead><tbody>
+    ${v.map((r,i)=>`<tr class="${r.decisiva?"dec "+r.livello.toLowerCase():i>k?"dopo":""}"><td class="mono">${esc(r.id)} → ${esc(r.livello)}</td><td>${esc(r.condizione)}</td><td>${esc(r.valori)}</td><td>${r.decisiva?"✔ decide":i>k?(r.vera?"non raggiunta (sarebbe vera)":"non raggiunta"):"✘ non si applica"}</td></tr>`).join("")}
+    </tbody></table>
+    <p class="note">Le regole si leggono dall'alto in basso: vale la prima vera. Valori e soglie sono quelli in vigore al momento del routing.${d.routing_coerente===false?' <span class="warnt">Attenzione: il livello assegnato non coincide con la matrice dichiarata (KPI A6).</span>':""}</p>`;
+}
+function riempiDettaglio(){
+  const d=ST.decisioni.find(x=>x.id===decAperta); if(!d){$("#dlgDec").close();return}
+  const lv=d.livello.toLowerCase(), s=d.spiegazione_operativa, cf=d.controfattuale, cs=d.casi_simili;
+  const az=esc(AZ(d.azione_proposta))+(d.azione_originale&&d.azione_originale!==d.azione_proposta?` <span class="note">(AI: ${esc(AZ(d.azione_originale))})</span>`:"");
+  const kv=[["Tipo",esc(TIPO(d.tipo_asset))],["Area",esc(d.area_geografica)],["Utenza",`<b>${esc(d.criticita_utenza)}</b>`],
+    ["P(guasto 30gg)",`<b>${pct(d.prob_guasto)}</b>`],["Confidenza",`<b>${n2(d.confidenza)}</b> · ${esc(d.descrizione_confidenza||"")}`],
+    ["Zona matrice",`<b>${esc(ZONA(d.zona))}</b>${d.confidenza_minima!=null?` · la curva chiede confidenza ≥ ${n2(d.confidenza_minima)} a questo rischio (${d.zona==="gialla"||d.zona==="rossa"?"sotto la curva":"sulla curva o a destra"})`:""} · criticità ${n2(d.indice_criticita)}${d.soglia_criticita!=null?` / soglia ${n2(d.soglia_criticita)}`:""}`],
+    ["Azione",az],["Carico",d.carico_pct==null?"–":esc(d.carico_pct)+"%"],["Stato",esc(d.stato)],
+    ["Esecuzione",d.eseguita?"eseguita "+esc(dt(d.eseguita_il)):"<b>non eseguita</b>"],["Creata",esc(dt(d.creata_il))],
+    ...(d.scadenza_sla||d.stato==="ESCALATION"?[["SLA",slaTesto(d)]]:[]),
+    ...(d.revisore?[["Revisore",esc(d.revisore)+(d.chiusa_il?" · "+esc(dt(d.chiusa_il)):"")]]:[]),
+    ...(d.bloccata_da?[["Bloccata da",`<span class="pill bad">STOP ${esc(d.bloccata_da)}</span>`]]:[])];
+  $("#dlgDec").style.borderColor=`var(--${lv})`;
+  $("#decTitle").innerHTML=`<span class="mono">${esc(d.asset_id)}</span> <span class="tag ${lv}">${esc(d.livello)}</span> <span class="mono rg">${esc(d.regola||"")}</span>`;
+  $("#decBody").innerHTML=`<h3>Perché è ${esc(d.livello)}</h3>${routingHTML(d)}
+    <h3>Dettagli della segnalazione</h3><div class="kvg">${kv.map(([k,v])=>`<div><span>${k}</span>${v}</div>`).join("")}</div>
+    ${d.motivazione?`<p class="note">Motivazione del revisore: «${esc(d.motivazione)}»</p>`:""}
+    ${d.escalation_da?`<p class="note warnt">Escalation ${esc(d.escalation_sla?"per SLA scaduto":"richiesta da "+d.escalation_da)}${d.motivo_escalation?": «"+esc(d.motivo_escalation)+"»":""}</p>`:""}
+    ${d.contestazione?`<p class="note warnt">Contestata da ${esc(d.contestazione.operatore)}: «${esc(d.contestazione.motivazione)}»</p>`:""}
+    ${(d.flag_revisione||[]).length?`<p class="note warnt">Segnalazioni sulla revisione: ${esc(d.flag_revisione.join(", "))}</p>`:""}
+    <h3>Spiegazione</h3>${s?`<div class="exp"><b>Perché:</b> ${esc(s.testo)}<span class="unc">${esc(s.incertezza)}</span><span class="src">${fonteTesto(d)}</span></div>
+    ${(s.fattori||[]).length?`<table class="mini"><thead><tr><th>Fattore</th><th>Valore</th><th>Tipico flotta</th><th>Giudizio</th><th>Effetto</th></tr></thead><tbody>
+    ${s.fattori.map(f=>`<tr><td>${esc(f.etichetta)}</td><td class="mono">${esc(f.valore_testo)}</td><td class="mono">${esc(f.valori_tipici)}</td><td>${esc(f.giudizio)}</td><td>${esc(f.direzione)}</td></tr>`).join("")}</tbody></table>`:""}`:`<p class="note">Spiegazione non ancora disponibile.</p>`}
+    ${cf?`<p><b>Cosa cambierebbe la raccomandazione:</b> ${esc(cf.testo)}</p>`:""}
+    ${cs?`<p><b>Casi simili:</b> ${esc(cs.testo)}${cs.avvertenza?` <span class="warnt">${esc(cs.avvertenza)}</span>`:""}</p>`:""}
+    <p class="note">Fattori: ${esc(d.metodo_fattori||"–")} · ID ${esc(d.id)}</p>`;
+}
+function apriDettaglio(id){decAperta=id;riempiDettaglio();const g=$("#dlgDec");if(!g.open)g.showModal()}
+$("#matrix").addEventListener("click",e=>{const c=e.target.closest("[data-dec]");if(c)apriDettaglio(c.dataset.dec)});
+$("#matrix").addEventListener("keydown",e=>{const c=e.target.closest("[data-dec]");if(c&&(e.key==="Enter"||e.key===" ")){e.preventDefault();apriDettaglio(c.dataset.dec)}});
+$("#decClose").addEventListener("click",()=>$("#dlgDec").close());
+$("#dlgDec").addEventListener("click",e=>{if(e.target===e.currentTarget)$("#dlgDec").close()});
+$("#dlgDec").addEventListener("close",()=>{const id=decAperta;decAperta=null;const c=id&&$(`#matrix [data-dec="${id}"]`);if(c)c.focus()});
 
 /* ===================== BIAS & DRIFT ===================== */
 async function caricaBias(){try{BIAS=await api("/api/bias");renderBias()}catch(e){toast("Errore bias: "+e.message,true)}}
@@ -624,12 +730,56 @@ let timerInteg=null;
 async function ripristinaIntegrita(){try{mostraIntegrita(await api("/api/audit/verifica"))}catch(e){}}
 
 /* ===================== MONITORAGGIO ===================== */
+const KPI_INFO={
+  A1:["Quante decisioni che richiedono un umano (HIC/HITL) sono state eseguite senza una revisione valida.","Decisioni HIC/HITL eseguite senza approvazione/modifica di un revisore con motivazione ÷ decisioni HIC/HITL totali. Deve essere 0."],
+  A2:["Quanto spesso l'umano non è d'accordo con l'AI. Un valore troppo basso suggerisce approvazioni automatiche, troppo alto un modello poco affidabile.","(Rifiutate + modificate) ÷ revisioni concluse."],
+  A3:["Quanto tempo serve ai revisori per decidere. Tempi troppo brevi indicano revisioni superficiali.","Mediana dei secondi tra l'apertura della card e l'esito, solo per le revisioni con apertura registrata."],
+  A4:["Misura il rischio di rubber-stamping: motivazioni di copiatura o troppo brevi.","(Motivazioni sotto la soglia di lunghezza accettate + fotocopie respinte, contate una volta per decisione e revisore) ÷ (revisioni concluse + fotocopie respinte)."],
+  A5:["Quante decisioni non vengono lavorate in tempo e finiscono in escalation per SLA scaduto.","Decisioni in escalation per SLA scaduto ÷ decisioni entrate in coda umana."],
+  A6:["Verifica che il livello di supervisione assegnato rispetti davvero le regole R1-R8 dichiarate.","Decisioni il cui livello coincide con la matrice di routing ricalcolata ÷ decisioni con un livello assegnato. Deve essere 100%."],
+  B1:["Ogni card in coda deve avere una spiegazione comprensibile.","Card in coda con testo della spiegazione e 3 fattori ÷ card in coda."],
+  B2:["La spiegazione deve dichiarare quando il modello è incerto.","Card in coda con la frase sull'incertezza ÷ card in coda."],
+  B3:["Per ogni decisione deve essere nel log la fonte della spiegazione (LLM o template).","Decisioni con evento di spiegazione nel log ÷ decisioni totali."],
+  B3c:["Con che frequenza l'LLM fallisce e si usa il template locale.","Chiamate LLM andate in fallback ÷ chiamate LLM totali. Target sotto il 5%."],
+  B4:["Quanti click servono per le azioni chiave (spiegazione, override, stop).","Valore di progetto, non calcolato a runtime: spiegazione 1 click, override 2, stop 1 più conferma."],
+  C1:["Il modello deve trovare i guasti in modo simile in tutte le aree geografiche.","Recall migliore tra le aree − recall peggiore, sul test set. Allerta se supera la soglia."],
+  C2:["Le probabilità del modello devono corrispondere ai guasti reali in ogni area.","Per area: probabilità media predetta − tasso osservato di guasti. Si mostra il massimo in valore assoluto."],
+  C3:["Controlla se gli umani sovrascrivono l'AI molto più in alcune aree (possibile bias del modello o dei revisori).","Tasso di override massimo per area − minimo, sulle revisioni live. Serve almeno una revisione in due aree."],
+  C4:["Controlla se la qualità del modello peggiora nel tempo.","Accuratezza media delle ultime settimane del flusso simulato. Sotto soglia, la soglia di confidenza sale di +0.05."],
+  D1:["Ogni esecuzione deve avere il suo record nel log.","Record di esecuzione nell'audit trail ÷ esecuzioni effettive (massimo 100%)."],
+  D2:["Il log non deve essere stato alterato.","Verifica la catena di hash dei record dell'audit trail: 100% se integra, 0% se compromessa."],
+  D3:["Quanto è rapido ricostruire il percorso completo di un asset per un audit.","Millisecondi misurati per ricostruire dal log la storia dell'asset più recente."]
+};
+const qm=c=>KPI_INFO[c]?`<span class="qm" tabindex="0" role="img" aria-label="Spiegazione dell'indicatore ${c}" data-kpi="${c}">?</span>`:"";
+(function(){
+  const tip=$("#kpiTip");
+  const show=el=>{const [cosa,come]=KPI_INFO[el.dataset.kpi];
+    tip.innerHTML=`<b>${el.dataset.kpi} · cosa misura</b>${esc(cosa)}<i><b style="display:inline">Come si calcola:</b> ${esc(come)}</i>`;
+    tip.style.display="block";
+    const r=el.getBoundingClientRect(), w=tip.offsetWidth, h=tip.offsetHeight;
+    let x=Math.min(Math.max(8,r.left),innerWidth-w-8), y=r.bottom+8;
+    if(y+h>innerHeight-8) y=Math.max(8,r.top-h-8);
+    tip.style.left=x+"px";tip.style.top=y+"px"};
+  const hide=()=>{tip.style.display="none"};
+  const b=$("#kpiBody");
+  b.addEventListener("mouseover",e=>{const q=e.target.closest(".qm");if(q)show(q)});
+  b.addEventListener("mouseout",e=>{if(e.target.closest(".qm"))hide()});
+  b.addEventListener("focusin",e=>{const q=e.target.closest(".qm");if(q)show(q)});
+  b.addEventListener("focusout",hide);
+  document.addEventListener("keydown",e=>{if(e.key==="Escape")hide()});
+})();
 async function caricaKPI(){
   try{
     const m=await api("/api/monitoraggio");
     const val=i=>i.valore==null?"–":i.unita==="pct"?pct(i.valore):i.unita==="s"?i.valore+" s":i.unita==="ms"?i.valore+" ms":i.valore;
     const cl=s=>s==="ok"?"ok":s==="critico"||s==="allerta"?"bad":s==="n/d"||s==="info"?"":"warn";
-    $("#kpiBody").innerHTML=m.indicatori.map(i=>`<tr><td class="mono"><b>${i.codice}</b></td><td>${esc(i.nome)}</td><td class="mono">${val(i)}</td><td>${esc(i.target)}</td><td><span class="pill ${cl(i.stato)}">${esc(i.stato)}</span></td><td style="color:var(--mut)">${esc(i.dettaglio)}</td></tr>`).join("");
+    const gruppi=[["A","Efficacia della supervisione"],["B","Comprensibilità e trasparenza"],
+                  ["C","Fairness e monitoraggio continuo"],["D","Tracciabilità"]];
+    const riga=i=>`<tr class="kg${i.codice[0].toLowerCase()}"><td class="mono"><b>${i.codice}</b></td><td>${esc(i.nome)}${qm(i.codice)}</td><td class="mono">${val(i)}</td><td>${esc(i.target)}</td><td><span class="pill ${cl(i.stato)}">${esc(i.stato)}</span></td><td style="color:var(--mut)">${esc(i.dettaglio)}</td></tr>`;
+    $("#kpiBody").innerHTML=gruppi.map(([L,titolo])=>{
+      const lista=m.indicatori.filter(i=>i.codice[0]===L);
+      return lista.length?`<tr class="kgh kg${L.toLowerCase()}"><td colspan="6">${L} · ${titolo}</td></tr>`+lista.map(riga).join(""):"";
+    }).join("");
     $("#puntoUnico").innerHTML=`<b>Punto unico di esecuzione (T1):</b> ${esc(m.punto_unico)}`;
     $("#revBody").innerHTML=m.revisori.map(r=>`<tr><td class="mono">${esc(r.revisore)}</td><td>${r.revisioni}</td><td${r.revisioni_respinte?' class="warnt" title="Revisioni respinte per motivazione fotocopia (rubber-stamping)"':""}>${r.revisioni_respinte||0}</td><td>${pct(r.tasso_override)}</td><td>${r.tempo_mediano_s??"–"} s</td><td>${esc(r.segnali.join(", ")||"–")}</td></tr>`).join("")||`<tr><td colspan="6" class="empty">Nessuna revisione</td></tr>`;
     $("#esecBody").innerHTML=m.esecuzioni.map(e=>`<tr><td class="mono">${esc(e.eseguita_il.slice(11,19))}</td><td class="mono">${esc(e.asset_id)}</td><td>${esc(AZ(e.azione))}</td><td>${esc(e.livello)}</td><td class="mono">${esc(e.autorizzata_da)}</td></tr>`).join("")||`<tr><td colspan="5" class="empty">Nessuna esecuzione</td></tr>`;
@@ -661,10 +811,10 @@ function renderAll(){
 /* ===================== EVENTI: CODA ===================== */
 $("#coda").addEventListener("input",e=>{
   if(e.target.tagName!=="TEXTAREA")return;
-  const id=e.target.dataset.id, n=e.target.value.trim().length, ok=n>=CFG.min_motivazione;
+  const id=e.target.dataset.id, n=e.target.value.trim().length, ok=n>=MINREV();
   drafts[id]=e.target.value;
   if(errori[id]){delete errori[id];const er=$("#e-"+id);if(er)er.textContent=""}
-  const c=$("#c-"+id); c.textContent=`${n} / ${CFG.min_motivazione} caratteri${ok?" · motivazione valida":" · i pulsanti si sbloccano con la motivazione"}`; c.className=ok?"":"ko";
+  const c=$("#c-"+id); c.textContent=`${n} / ${MINREV()} caratteri${ok?" · motivazione valida":" · i pulsanti si sbloccano con la motivazione"}`; c.className=ok?"":"ko";
   document.querySelectorAll(`[data-id="${id}"][data-act]`).forEach(b=>b.disabled=!ok);
 });
 $("#coda").addEventListener("focusin",e=>{

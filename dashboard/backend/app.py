@@ -162,6 +162,12 @@ class Sistema:
             except KeyError:
                 return did
 
+    @staticmethod
+    def _confidenza(riga, prob: float) -> float:
+        """P(previsione corretta) dal meta-modello, calcolata in addestramento (predizioni.csv); se manca, max(p, 1-p)."""
+        c = riga.get("confidenza")
+        return round(float(c), 3) if c is not None and c == c else calcola_confidenza(prob)
+
     def _sottometti_riga(self, i: int) -> Raccomandazione:
         riga = self.pred.iloc[i]
         x = self.X.iloc[i]
@@ -169,7 +175,7 @@ class Sistema:
         carico = float(riga["carico_pct"])
         analisi = analizza_riga(self.modello, x.to_numpy(), self.colonne)
         r = Raccomandazione(str(riga["asset_id"]), str(riga["tipo_asset"]), str(riga["area_geografica"]),
-                            str(riga["criticita_utenza"]), prob, calcola_confidenza(prob),
+                            str(riga["criticita_utenza"]), prob, self._confidenza(riga, prob),
                             azione_raccomandata(prob, carico),
                             [(f.nome, round(f.contributo, 4)) for f in analisi.fattori],
                             id=self._nuovo_id(), carico_pct=carico)
@@ -348,6 +354,7 @@ class Sistema:
     # ------------------------------------------------------------------ letture
     def _decisione(self, r: Raccomandazione) -> dict:
         d = self.om.a_dict(r)
+        d["valutazione_routing"] = self.om.valutazione_routing(r)
         d.pop("contesto_routing", None)
         det = self.dettagli.get(r.id, {})
         sp = det.get("spiegazione")
@@ -390,6 +397,7 @@ class Sistema:
         return {"aree": self.aree, "tipi": self.tipi, "azioni": AZIONI, "etichette_azioni": AZIONI_ETICHETTA,
                 "limiti_soglie": OversightManager.LIMITI_SOGLIE,
                 "min_motivazione": OversightManager.MIN_MOTIVAZIONE,
+                "min_motivazione_revisione": OversightManager.MIN_MOTIVAZIONE_REVISIONE,
                 "prefisso_supervisore": OversightManager.PREFISSO_SUPERVISORE,
                 "guasti_llm": GUASTI_SIMULABILI, "llm": self.config_llm.dettagli(),
                 "modello": {"tipo": type(self.modello).__name__, "n_test": self.report["n_test"],
@@ -408,7 +416,7 @@ class Sistema:
         for _, riga in self.pred.iterrows():
             p = round(float(riga["proba"]), 3)
             args = (riga["asset_id"], riga["tipo_asset"], riga["area_geografica"], riga["criticita_utenza"],
-                    p, calcola_confidenza(p), azione_raccomandata(p, float(riga["carico_pct"])), [])
+                    p, self._confidenza(riga, p), azione_raccomandata(p, float(riga["carico_pct"])), [])
             v = per_area[riga["area_geografica"]]
             guasto = int(riga["y_true"]) == 1
             v["n"] += 1

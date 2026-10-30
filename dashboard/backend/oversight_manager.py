@@ -104,7 +104,7 @@ class RubberStamping(ValueError):
 AZIONI = ["nessuna_azione", "ispezione_routine", "programma_manutenzione",
           "riduci_carico", "ispezione_urgente"]
 AZIONI_LEGGERE = ("nessuna_azione", "ispezione_routine")
-SOGLIA_DECISIONALE = 0.35   # sotto questa soglia il modello non segnala il guasto (vedi model card)
+SOGLIA_DECISIONALE = 0.20   # sotto questa soglia il modello non segnala il guasto (vedi model card). Probabilita' calibrate: 0.20 corrisponde al punto operativo storico (0.35 sul RandomForest non calibrato)
 
 POLITICA_AZIONI = [
     {"id": "P1", "condizione": "P(guasto) >= 0.70 e carico >= 85%", "azione": "riduci_carico",
@@ -133,16 +133,58 @@ def azione_raccomandata(prob_guasto: float, carico_pct: float) -> str:
     return "nessuna_azione"
 
 
+# ----------------------------------------------------------------------
+# Frontiera della zona verde e zone della matrice di routing (regole R3, R4, R7).
+# f(P) = soglia di confidenza + PENDENZA_CRITICITA * P(guasto) e' la confidenza minima per lasciare agire
+# il modello: con la soglia di default 0.80 la curva va da (confidenza 0.80, P 0) a (0.90, P 1).
+# La curva divide la zona verde dalle altre per tutta l'altezza della matrice:
+#   verde         confidenza >= f(P), P < soglia di rischio                -> HOTL se l'azione e' leggera (R7)
+#   verde_rischio confidenza >= f(P), P >= soglia di rischio               -> HIC (R3): l'azione non e' mai
+#                 leggera, la decisione sarebbe HITL e passa a HIC per la probabilita' di guasto
+#   rossa         confidenza <  f(P), P >= soglia di rischio               -> HIC (R3)
+#   gialla        confidenza <  f(P), P < soglia di rischio                -> HITL (R4)
+# Il margine di drift alza la soglia di confidenza e sposta la curva a destra.
+# L'indice di criticita' I = (1 - confidenza) + 0.10 * P e' la stessa curva letta come numero:
+# I > 1 - soglia di confidenza  <=>  confidenza < f(P).
+# ----------------------------------------------------------------------
+PENDENZA_CRITICITA = 0.10
+ZONE_TESTO = {"verde": "verde", "verde_rischio": "verde sopra la soglia di rischio",
+              "rossa": "rossa", "gialla": "gialla"}
+
+
+def indice_criticita(confidenza: float, prob_guasto: float) -> float:
+    return round((1 - float(confidenza)) + PENDENZA_CRITICITA * float(prob_guasto), 4)
+
+
+def soglia_criticita(soglia_confidenza: float) -> float:
+    """Soglia dell'indice equivalente alla soglia di confidenza a P(guasto) = 0."""
+    return round(1 - float(soglia_confidenza), 4)
+
+
+def frontiera_hotl(soglia_confidenza: float, prob_guasto: float) -> float:
+    """Curva che separa la zona verde dalle zone gialla e rossa: confidenza minima a questo P(guasto)."""
+    return round(float(soglia_confidenza) + PENDENZA_CRITICITA * float(prob_guasto), 4)
+
+
+def zona_matrice(confidenza: float, prob_guasto: float, soglia_confidenza: float, soglia_rischio: float) -> str:
+    """Zona della matrice confidenza x rischio in cui cade la decisione (vedi tabella sopra)."""
+    rischio_alto = float(prob_guasto) >= float(soglia_rischio)
+    if round(float(confidenza), 4) >= frontiera_hotl(soglia_confidenza, prob_guasto):
+        return "verde_rischio" if rischio_alto else "verde"
+    return "rossa" if rischio_alto else "gialla"
+
+
 def calcola_confidenza(prob_guasto: float) -> float:
-    """confidenza = max(p, 1-p): quanto il modello e' lontano dal 'non so' (0.5)."""
+    """Ripiego: max(p, 1-p), usata solo se manca il meta-modello di affidabilita' (vedi nota in fondo)."""
     return round(max(prob_guasto, 1 - prob_guasto), 3)
 
 
 # ----------------------------------------------------------------------
 # Matrice di routing dichiarata (Dichiarazione di Oversight, deliverable D3).
 # Le regole si leggono dall'alto in basso: vale la prima che si applica.
-# `verifica` e' usata SOLO per il controllo di coerenza (KPI A6): il routing
-# vero e' scritto in modo indipendente in OversightManager.route().
+# `verifica` e' usata per il controllo di coerenza (KPI A6) e per lo specchietto
+# "perche' questo livello" della dashboard: il routing vero e' scritto in modo
+# indipendente in OversightManager.route().
 # ----------------------------------------------------------------------
 @dataclass(frozen=True)
 class RegolaRouting:
@@ -157,6 +199,10 @@ class RegolaRouting:
                 "livello": self.livello.value, "perche": self.perche}
 
 
+def _zona(c: dict) -> str:
+    return zona_matrice(c["confidenza"], c["prob_guasto"], c["soglia_confidenza"], c["soglia_rischio"])
+
+
 MATRICE_ROUTING = [
     RegolaRouting("R1", "Utenza critica coinvolta (ospedali, infrastrutture essenziali)",
                   LivelloSupervisione.HIC,
@@ -166,14 +212,17 @@ MATRICE_ROUTING = [
                   LivelloSupervisione.HIC,
                   "Ridurre il carico limita la fornitura a utenze sensibili: decide solo l'operatore.",
                   lambda c: c["azione"] == "riduci_carico" and c["criticita_utenza"] != "standard"),
-    RegolaRouting("R3", "P(guasto) >= soglia di rischio (default 0.60)",
+    RegolaRouting("R3", "P(guasto) >= soglia di rischio (default 0.85). A sinistra della curva e' la zona rossa; "
+                        "a destra l'azione non e' mai leggera e la decisione passa da HITL a HIC",
+                  LivelloSupervisione.HIC,
+                  "Guasto molto probabile: intervenire o non intervenire e' una scelta riservata all'operatore.",
+                  lambda c: _zona(c) in ("rossa", "verde_rischio")),
+    RegolaRouting("R4", "Zona gialla: confidenza sotto la curva f(P) = soglia di confidenza + 0.10 x P(guasto) "
+                        "(default da 0.80 a P 0 fino a 0.90 a P 1, +0.05 con allerta di drift)",
                   LivelloSupervisione.HITL,
-                  "Rischio alto: serve il giudizio umano prima di agire.",
-                  lambda c: c["prob_guasto"] >= c["soglia_rischio"]),
-    RegolaRouting("R4", "Confidenza < soglia di confidenza (default 0.80, +0.05 con allerta di drift)",
-                  LivelloSupervisione.HITL,
-                  "Modello incerto o performance recenti in calo: decide l'umano.",
-                  lambda c: c["confidenza"] < c["soglia_confidenza"]),
+                  "Modello non abbastanza affidabile per il rischio in gioco, o performance recenti in calo: "
+                  "decide l'umano.",
+                  lambda c: _zona(c) == "gialla"),
     RegolaRouting("R5", "Area sotto osservazione (allerta di calibrazione, fairness o override, o promozione manuale)",
                   LivelloSupervisione.HITL,
                   "Dove le performance non sono affidabili il sistema si declassa da solo.",
@@ -182,10 +231,11 @@ MATRICE_ROUTING = [
                   LivelloSupervisione.HITL,
                   "Dopo uno stop nessuna azione riparte in automatico.",
                   lambda c: c["post_stop"]),
-    RegolaRouting("R7", "Rischio basso + confidenza alta + azione leggera (nessuna azione o ispezione di routine)",
+    RegolaRouting("R7", "Zona verde (confidenza sulla curva o a destra, P(guasto) sotto la soglia di rischio) + "
+                        "azione leggera (nessuna azione o ispezione di routine)",
                   LivelloSupervisione.HOTL,
                   "Il sistema agisce, l'umano monitora e puo' contestare ex post.",
-                  lambda c: c["azione"] in AZIONI_LEGGERE),
+                  lambda c: _zona(c) == "verde" and c["azione"] in AZIONI_LEGGERE),
     RegolaRouting("R8", "Ogni altro caso (es. manutenzione programmata a rischio medio)",
                   LivelloSupervisione.HITL,
                   "Default prudente: nel dubbio decide l'umano.",
@@ -208,7 +258,7 @@ class Raccomandazione:
     area_geografica: str
     criticita_utenza: str          # standard | alta | critica
     prob_guasto: float             # output del modello, 0-1
-    confidenza: float              # 0-1, max(p, 1-p): vedi nota in fondo
+    confidenza: float              # 0-1, P(previsione corretta) dal meta-modello: vedi nota in fondo
     azione_proposta: str
     spiegazione: list              # fattori principali, es. [("vibrazione_indice", 0.41), ...]
     id: str = field(default_factory=lambda: str(uuid.uuid4())[:8])
@@ -247,6 +297,7 @@ class Raccomandazione:
 
 class OversightManager:
     MIN_MOTIVAZIONE = 15               # la guida: rifiutare motivazioni sotto i 15 caratteri
+    MIN_MOTIVAZIONE_REVISIONE = 30     # revisione di una decisione (approva/modifica/rifiuta/escalation)
     MAX_MOTIVAZIONE = 1000
     SOGLIA_MOTIVAZIONE_BREVE = 30      # KPI A4
     SOGLIA_REVISIONE_RAPIDA_S = 10     # KPI A3: < 10 s = approvazione senza lettura
@@ -256,7 +307,7 @@ class OversightManager:
                      "sla_minuti": (1, 240)}
 
     def __init__(self, audit_logger, soglia_confidenza_alta: float = 0.80,
-                 soglia_rischio_alto: float = 0.60, sla_minuti: int = 30,
+                 soglia_rischio_alto: float = 0.85, sla_minuti: int = 30,
                  orologio: Callable[[], datetime] = None, aree=None, tipi=None, lock=None):
         self.audit = audit_logger
         self.soglia_conf = soglia_confidenza_alta
@@ -301,13 +352,18 @@ class OversightManager:
         return round(self.soglia_conf + self.margine_drift, 3)
 
     def _contesto(self, r: Raccomandazione, post_stop: bool) -> dict:
+        soglia_conf = self.soglia_conf_effettiva
         return {
             "criticita_utenza": r.criticita_utenza,
             "azione": r.azione_proposta,
             "prob_guasto": float(r.prob_guasto),
             "confidenza": float(r.confidenza),
+            "confidenza_minima": frontiera_hotl(soglia_conf, r.prob_guasto),
+            "zona": zona_matrice(r.confidenza, r.prob_guasto, soglia_conf, self.soglia_rischio),
+            "indice_criticita": indice_criticita(r.confidenza, r.prob_guasto),
+            "soglia_criticita": soglia_criticita(soglia_conf),
             "soglia_rischio": self.soglia_rischio,
-            "soglia_confidenza": self.soglia_conf_effettiva,
+            "soglia_confidenza": soglia_conf,
             "margine_drift": self.margine_drift,
             "area_promossa": self.area_promossa(r.area_geografica),
             "motivi_promozione": self.motivi_promozione(r.area_geografica),
@@ -315,15 +371,18 @@ class OversightManager:
         }
 
     def route(self, r: Raccomandazione, post_stop: bool = False) -> LivelloSupervisione:
-        """Assegna il livello di supervisione secondo la matrice dichiarata (R1-R8)."""
+        """Assegna il livello di supervisione secondo la matrice dichiarata (R1-R8).
+        R3, R4 e R7 dipendono dalla posizione rispetto alla curva f(P) e alla soglia di rischio."""
         c = self._contesto(r, post_stop)
+        sotto_curva = round(c["confidenza"], 4) < c["confidenza_minima"]
         if c["criticita_utenza"] == "critica":
             livello, regola = LivelloSupervisione.HIC, "R1"
         elif c["azione"] == "riduci_carico" and c["criticita_utenza"] != "standard":
             livello, regola = LivelloSupervisione.HIC, "R2"
         elif c["prob_guasto"] >= c["soglia_rischio"]:
-            livello, regola = LivelloSupervisione.HITL, "R3"
-        elif c["confidenza"] < c["soglia_confidenza"]:
+            # zona rossa (sotto la curva) o zona verde sopra la soglia di rischio: in entrambi i casi HIC
+            livello, regola = LivelloSupervisione.HIC, "R3"
+        elif sotto_curva:
             livello, regola = LivelloSupervisione.HITL, "R4"
         elif c["area_promossa"]:
             livello, regola = LivelloSupervisione.HITL, "R5"
@@ -344,20 +403,29 @@ class OversightManager:
         if regola == "R2":
             return f"Riduzione del carico su utenza {c['criticita_utenza']}: decisione riservata all'operatore."
         if regola == "R3":
-            return (f"P(guasto) {_f(c['prob_guasto'])} pari o sopra la soglia di rischio "
-                    f"{_f(c['soglia_rischio'])}: serve una revisione umana prima di agire.")
+            if c.get("zona") == "verde_rischio":
+                return (f"P(guasto) {_f(c['prob_guasto'])} pari o sopra la soglia di rischio "
+                        f"{_f(c['soglia_rischio'])}. Il modello e' affidabile (confidenza {_f(c['confidenza'])}, "
+                        f"la curva chiede {_f(c['confidenza_minima'])}), ma l'azione non e' leggera: la decisione "
+                        f"passa da HITL a HIC e decide solo l'operatore.")
+            return (f"Zona rossa: P(guasto) {_f(c['prob_guasto'])} pari o sopra la soglia di rischio "
+                    f"{_f(c['soglia_rischio'])} e confidenza {_f(c['confidenza'])} sotto la curva "
+                    f"({_f(c['confidenza_minima'])}): guasto molto probabile, decide solo l'operatore.")
         if regola == "R4":
-            extra = (f" (inclusi +{_f(c['margine_drift'])} per l'allerta di drift)"
+            extra = (f" (curva spostata di {_f(c['margine_drift'])} per l'allerta di drift)"
                      if c["margine_drift"] else "")
-            return (f"Confidenza {_f(c['confidenza'])} sotto la soglia {_f(c['soglia_confidenza'])}"
-                    f"{extra}: il modello e' incerto, decide l'umano.")
+            return (f"Zona gialla: con P(guasto) {_f(c['prob_guasto'])} la curva chiede una confidenza di almeno "
+                    f"{_f(c['confidenza_minima'])}, il modello ha {_f(c['confidenza'])} (criticita' "
+                    f"{_f(c['indice_criticita'])}, soglia {_f(c['soglia_criticita'])}){extra}. Decide l'umano.")
         if regola == "R5":
             return (f"Area {r.area_geografica} sotto osservazione ({'; '.join(c['motivi_promozione'])}): "
                     f"decisione promossa a HITL.")
         if regola == "R6":
             return "Decisione sospesa da un emergency stop: alla riattivazione serve una revisione umana."
         if regola == "R7":
-            return "Rischio basso, confidenza alta e azione leggera: esecuzione automatica monitorata (HOTL)."
+            return (f"Zona verde: confidenza {_f(c['confidenza'])} sulla curva o a destra "
+                    f"({_f(c['confidenza_minima'])} a P(guasto) {_f(c['prob_guasto'])}) e azione leggera: "
+                    f"esecuzione automatica monitorata (HOTL).")
         return f"Azione '{c['azione']}' non leggera: serve l'approvazione umana (default prudente)."
 
     def verifica_routing(self, r: Raccomandazione) -> bool:
@@ -365,6 +433,44 @@ class OversightManager:
         if not r.contesto_routing or r.livello is None:
             return False
         return valuta_matrice(r.contesto_routing).livello == r.livello
+
+    def valutazione_routing(self, r: Raccomandazione) -> list:
+        """Specchietto per la dashboard: ogni regola della matrice dichiarata valutata sul contesto salvato
+        al momento del routing (con le soglie di allora). Decide la prima regola vera, come in route()."""
+        c = r.contesto_routing
+        if not c:
+            return []
+        azione = str(c.get("azione", "")).replace("_", " ")
+        drift = f", drift +{_f(c['margine_drift'])}" if c.get("margine_drift") else ""
+        motivi = "; ".join(c.get("motivi_promozione") or [])
+        ic = indice_criticita(c["confidenza"], c["prob_guasto"])
+        sc = soglia_criticita(c["soglia_confidenza"])
+        cmin = frontiera_hotl(c["soglia_confidenza"], c["prob_guasto"])
+        zona = _zona(c)
+        posizione = (f"confidenza {_f(c['confidenza'])} "
+                     + ("sotto la curva" if zona in ("rossa", "gialla") else "sulla curva o a destra")
+                     + f" ({_f(cmin)})")
+        valori = {
+            "R1": f"utenza {c.get('criticita_utenza')}",
+            "R2": f"azione {azione}, utenza {c.get('criticita_utenza')}",
+            "R3": (f"P(guasto) {_f(c['prob_guasto'])}, soglia di rischio {_f(c['soglia_rischio'])}; "
+                   f"{posizione}: zona {ZONE_TESTO[zona]}"),
+            "R4": (f"curva f(P) = {_f(c['soglia_confidenza'])} + 0.1 x {_f(c['prob_guasto'])} = {_f(cmin)}"
+                   f"{drift}; {posizione}, criticita' {_f(ic)} (soglia {_f(sc)}): zona {ZONE_TESTO[zona]}"),
+            "R5": (f"area {r.area_geografica} sotto osservazione ({motivi})" if c.get("area_promossa")
+                   else f"area {r.area_geografica} non sotto osservazione"),
+            "R6": "riattivata dopo un emergency stop" if c.get("post_stop") else "nessuno stop precedente",
+            "R7": (f"zona {ZONE_TESTO[zona]}, azione {azione}: "
+                   + ("leggera" if c.get("azione") in AZIONI_LEGGERE else "non leggera")),
+            "R8": "sempre vera (default prudente)",
+        }
+        esito, decisa = [], False
+        for regola in MATRICE_ROUTING:
+            vera = bool(regola.verifica(c))
+            esito.append({**regola.descrizione(), "vera": vera, "decisiva": vera and not decisa,
+                          "valori": valori[regola.id]})
+            decisa = decisa or vera
+        return esito
 
     # ------------------------------------------------------------------
     def sottometti(self, r: Raccomandazione) -> Raccomandazione:
@@ -415,10 +521,10 @@ class OversightManager:
     def revisiona(self, decision_id: str, esito: StatoDecisione,
                   revisore: str, motivazione: str,
                   azione_modificata: Optional[str] = None) -> Raccomandazione:
-        """Registra il giudizio umano. La motivazione e' OBBLIGATORIA."""
+        """Registra il giudizio umano. La motivazione e' OBBLIGATORIA (almeno MIN_MOTIVAZIONE_REVISIONE caratteri)."""
         with self._lock:
             revisore = self._valida_operatore(revisore)
-            motivazione = self._valida_motivazione(motivazione)
+            motivazione = self._valida_motivazione(motivazione, self.MIN_MOTIVAZIONE_REVISIONE)
             try:
                 esito = StatoDecisione(esito)
             except ValueError:
@@ -497,11 +603,17 @@ class OversightManager:
         origine_id, similarita = trovata
         origine = self._indice.get(origine_id)
         asset = origine.asset_id if origine else origine_id
-        self.respinte.append({"il": _iso(self._ora()), "operatore": revisore, "decisione_id": r.id,
-                              "motivo": "motivazione_fotocopia"})
+        # ritentare la stessa decisione con una motivazione ancora fotocopia e' la stessa respinta:
+        # conta una sola volta nei KPI (A4, segnali del revisore); ogni tentativo resta nell'audit trail
+        gia_contata = any(x["operatore"] == revisore and x["decisione_id"] == r.id
+                          and x["motivo"] == "motivazione_fotocopia" for x in self.respinte)
+        if not gia_contata:
+            self.respinte.append({"il": _iso(self._ora()), "operatore": revisore, "decisione_id": r.id,
+                                  "motivo": "motivazione_fotocopia"})
         self.audit.log(revisore, "rubber_stamping_bloccato", r, extra={
             "motivo": "motivazione_fotocopia", "esito_tentato": esito.value, "motivazione": motivazione,
-            "fotocopia_di": origine_id, "asset_origine": asset, "similarita": round(similarita, 3)})
+            "fotocopia_di": origine_id, "asset_origine": asset, "similarita": round(similarita, 3),
+            "ripetizione": gia_contata})
         raise RubberStamping(
             f"Rubber-stamping bloccato: motivazione fotocopia (simile al {similarita:.0%} a quella gia' usata "
             f"per {asset}). Scrivi cosa hai verificato su questa decisione: la revisione NON e' stata "
@@ -557,10 +669,11 @@ class OversightManager:
     def _registra_motivazione(self, motivazione: str, decision_id: str) -> None:
         self._motivazioni_usate.append((self._confrontabile(motivazione), decision_id))
 
-    def _valida_motivazione(self, motivazione: Optional[str]) -> str:
+    def _valida_motivazione(self, motivazione: Optional[str], minimo: Optional[int] = None) -> str:
         m = re.sub(r"\s+", " ", motivazione or "").strip()
-        if len(m) < self.MIN_MOTIVAZIONE:
-            raise ValueError(f"Motivazione obbligatoria: almeno {self.MIN_MOTIVAZIONE} caratteri "
+        minimo = minimo or self.MIN_MOTIVAZIONE
+        if len(m) < minimo:
+            raise ValueError(f"Motivazione obbligatoria: almeno {minimo} caratteri "
                              f"(inseriti {len(m)}). Senza motivazione non c'e' audit trail.")
         if len(m) > self.MAX_MOTIVAZIONE:
             raise ValueError(f"Motivazione troppo lunga (massimo {self.MAX_MOTIVAZIONE} caratteri).")
@@ -729,6 +842,8 @@ class OversightManager:
         return {"soglia_confidenza": self.soglia_conf, "soglia_rischio": self.soglia_rischio,
                 "sla_minuti": self.sla_minuti, "margine_drift": self.margine_drift,
                 "soglia_confidenza_effettiva": self.soglia_conf_effettiva,
+                "soglia_criticita_effettiva": soglia_criticita(self.soglia_conf_effettiva),
+                "pendenza_criticita": PENDENZA_CRITICITA,
                 "hic_solo_supervisori": self.hic_solo_supervisori}
 
     def imposta_soglie(self, operatore: str, motivazione: str, soglia_confidenza: float = None,
@@ -1047,6 +1162,10 @@ class OversightManager:
             "motivo_routing": r.motivo_routing,
             "soglia_confidenza": c.get("soglia_confidenza", self.soglia_conf_effettiva),
             "soglia_rischio": c.get("soglia_rischio", self.soglia_rischio),
+            "indice_criticita": indice_criticita(r.confidenza, r.prob_guasto),
+            "soglia_criticita": soglia_criticita(c.get("soglia_confidenza", self.soglia_conf_effettiva)),
+            "confidenza_minima": c.get("confidenza_minima"),
+            "zona": c.get("zona"),
             "margine_drift": c.get("margine_drift", self.margine_drift),
             "area_sotto_osservazione": bool(c.get("area_promossa")),
         }
@@ -1057,6 +1176,10 @@ class OversightManager:
             v = getattr(r, chiave)
             d[chiave] = v.value if isinstance(v, Enum) else v
         d["spiegazione"] = [[str(f), float(v)] for f, v in (r.spiegazione or [])]
+        d["indice_criticita"] = indice_criticita(r.confidenza, r.prob_guasto)
+        d["soglia_criticita"] = (r.contesto_routing or {}).get("soglia_criticita")
+        d["confidenza_minima"] = (r.contesto_routing or {}).get("confidenza_minima")
+        d["zona"] = (r.contesto_routing or {}).get("zona")
         d["scadenza_sla"] = self.scadenza_sla(r)
         d["routing_coerente"] = self.verifica_routing(r)
         d["richiede_supervisore"] = (r.stato == StatoDecisione.ESCALATION or (
@@ -1099,7 +1222,8 @@ def _stato_soglia(x, target, allarme, n) -> str:
     return "allerta" if x > allarme or target == allarme else "attenzione"
 
 
-# NOTA SU "CONFIDENZA": per un classificatore binario una scelta semplice e
-# difendibile e' confidenza = max(p, 1-p) oppure 1 - entropia normalizzata.
-# Qui usiamo max(p, 1-p) (calcola_confidenza), dichiarato in model card: e'
-# alta vicino a 0 e a 1, minima (0.5) quando il modello "tira a indovinare".
+# NOTA SU "CONFIDENZA": e' la P(previsione corretta) stimata dal meta-modello di affidabilita'
+# (modello_calibrato.MetaAffidabilita), un secondo Random Forest addestrato sugli errori out-of-fold
+# del modello. Dichiarata in model card. A differenza di max(p, 1-p) (calcola_confidenza, solo ripiego)
+# non e' funzione di p: la curva f(P) che separa la zona verde (R4, R7) e la soglia di rischio (R3)
+# guardano davvero due cose diverse, e nella matrice la frontiera HOTL e' una curva, non un rettangolo.
