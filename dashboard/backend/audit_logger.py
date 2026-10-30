@@ -241,6 +241,7 @@ class AuditLogger:
                        for r in recs if r["evento"].startswith("spiegazione_")]
         azione_ai = ultima.get("azione_originale") or prima.get("azione")
         stato = ultima.get("stato")
+        scenario = next(((r.get("extra") or {}) for r in recs if r["evento"] == "scenario_simulato"), None)
         if revisioni:
             rv = revisioni[-1]
             d = rv["decisione"]
@@ -282,6 +283,7 @@ class AuditLogger:
                                     "esito_tentato": (x.get("extra") or {}).get("esito_tentato"),
                                     "motivazione": (x.get("extra") or {}).get("motivazione")} for x in respinti],
             "spiegazioni": spiegazioni,
+            "scenario_simulato": scenario,
             "creata_il": recs[0]["timestamp"],
             "eventi": [{"n": r.get("n"), "timestamp": r["timestamp"], "attore": r["attore"], "evento": r["evento"],
                         "stato": (r.get("decisione") or {}).get("stato"),

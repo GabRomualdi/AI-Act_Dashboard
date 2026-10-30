@@ -35,7 +35,7 @@ Sono disponibili anche `--senza-llm` (solo template) e `--port`.
 
 **Dove**
 - `oversight_manager.py:521` (`revisiona`): `_esegui` viene chiamato **solo** per APPROVATA o MODIFICATA.
-- Endpoint `POST /api/decisioni/{id}/revisione` (`app.py:632`).
+- Endpoint `POST /api/decisioni/{id}/revisione` (`app.py:658`).
 
 ### T1-bis · "Mostrateci nel codice l'unico punto in cui un'azione viene eseguita, e dimostrate che una decisione rifiutata non può raggiungerlo"
 
@@ -51,7 +51,7 @@ Sono disponibili anche `--senza-llm` (solo template) e `--port`.
 - In questi casi solleva `EsecuzioneNonAutorizzata` e registra `esecuzione_negata` nel log.
 
 **Dove**
-- Scheda **Monitoraggio KPI**: il KPI **A1** (auto-esecuzione impropria) deve valere 0, e il registro delle esecuzioni riporta `punto_unico` (`app.py:521`).
+- Scheda **Monitoraggio KPI**: il KPI **A1** (auto-esecuzione impropria) deve valere 0, e il registro delle esecuzioni riporta `punto_unico` (`app.py:547`).
 - Prova di ricerca: `grep -n "_esegui(" dashboard/backend/*.py`.
 
 ### T2 · Motivazione – "Approvate con motivazione vuota, poi con 'ok'"
@@ -104,7 +104,7 @@ Sono disponibili anche `--senza-llm` (solo template) e `--port`.
 
 **Dove**
 - `explainer.py:373` (`SpiegatoreTemplate`), `:405` (`_incertezza`), `:457` (`controfattuale`), `:522` (`CasiSimili`).
-- Composizione nella card: `app.py:171` (`_sottometti_riga`).
+- Composizione nella card: `app.py:190` (`_sottometti`).
 
 ### T4-bis (con LLM) · "Cosa succede se stacchiamo la rete o mettiamo una chiave errata? Quali guardrail impediscono all'LLM di inventare numeri?"
 
@@ -124,7 +124,7 @@ Qualunque violazione, o qualunque errore (rete, quota, timeout, JSON malformato)
 
 **Dove**
 - KPI **B3b** (fonte dichiarata) e **B3c** (tasso di fallback < 5%).
-- `POST /api/llm/guasto` (`app.py:671`).
+- `POST /api/llm/guasto` (`app.py:697`).
 
 ### T5 · Bias nascosto – "Cosa avete scoperto sui dati storici di quest'azienda?"
 
@@ -145,7 +145,7 @@ Qualunque violazione, o qualunque errore (rete, quota, timeout, JSON malformato)
 
 **Dove**
 - `bias_detector.py:201` (`indagine_label_bias`), `:259` (`confronto_abbinato`), `:98` (`calibrazione_per_gruppo`).
-- `app.py:226` (`_aggiorna_promozioni`), `app.py:406` (`misura_mitigazione`).
+- `app.py:247` (`_aggiorna_promozioni`), `app.py:432` (`misura_mitigazione`).
 - Scheda **Fairness & drift**: box "Cosa abbiamo scoperto (T5)", tabella label bias e tabella mitigazione prima/dopo.
 
 ### T6 · Audit a ritroso – "Ricostruite in un minuto una decisione chiusa un'ora fa. Poi dimostrate che il log non è manomissibile in silenzio"
@@ -268,7 +268,7 @@ Sono riportate anche in `DichiarazioneDiOversight.md` §4.
 - Senza `.env`, o con `--senza-llm`, il sistema funziona interamente a template.
 
 **Dove**
-- `explainer.py:691` (`SpiegatoreLLM`), `app.py:200` (`_genera_spiegazione`), `app.py:211` (`_job_llm`).
+- `explainer.py:691` (`SpiegatoreLLM`), `app.py:221` (`_genera_spiegazione`), `app.py:232` (`_job_llm`).
 
 ### "Mostrate la calibrazione per gruppo, il drift nel tempo e il tasso di override per area."
 
@@ -283,7 +283,7 @@ Sono riportate anche in `DichiarazioneDiOversight.md` §4.
 
 ### "C'è almeno un alert automatico che modifica il routing?"
 
-**Risposta.** Sì, quattro (`app.py:226` → `oversight_manager.py:908`):
+**Risposta.** Sì, quattro (`app.py:247` → `oversight_manager.py:908`):
 1. C2 promuove l'area a HITL;
 2. il label bias promuove l'area a HITL;
 3. l'override ≥ 40% (C3) promuove l'area a HITL;
@@ -344,7 +344,7 @@ Promozioni e revoche sono registrate nel log. È possibile anche la promozione o
 | **D2** | "Il log è integro?" | Indicatore sempre visibile; "Simula manomissione". |
 | **D3** | "Quanto tempo serve per ricostruire una decisione?" | Pochi secondi con **Ricostruisci**, senza grep. |
 
-Calcolo dei KPI: `oversight_manager.py:994` (`kpi`), `app.py:440` (`monitoraggio`).
+Calcolo dei KPI: `oversight_manager.py:994` (`kpi`), `app.py:466` (`monitoraggio`).
 
 ---
 
@@ -375,7 +375,7 @@ Altri articoli citati dalla guida:
 - L'identità del supervisore si basa sul prefisso `SUP-`, senza autenticazione.
 - Chiunque abbia un ID può modificare le soglie: la modifica è motivata e registrata, ma non è limitata per ruolo.
 - L'hash del log non è firmato: serve un'ancora esterna.
-- SLA, drift e flusso delle raccomandazioni sono simulati.
+- SLA, drift e flusso delle raccomandazioni sono simulati. Una raccomandazione su cinque di "+5" è uno scenario simulato di deterioramento, dichiarato come tale.
 
 Elenco completo: `DichiarazioneDiOversight.md` §8 e `audit_logger.py:19`.
 
@@ -393,7 +393,12 @@ Elenco completo: `DichiarazioneDiOversight.md` §8 e `audit_logger.py:19`.
 - No: errore 403. Può solo metterla in escalation e la chiude un `SUP-…` (`oversight_manager.py:560`).
 
 **"Una richiesta da un altro sito può approvare decisioni?"**
-- No: le richieste diverse da GET con Origin diversa dall'host ricevono 403 (`app.py:595`).
+- No: le richieste diverse da GET con Origin diversa dall'host ricevono 403 (`app.py:621`).
+
+**"Perché c'è un HIC su un'utenza non critica con P(guasto) ≥ 90%? Nel test set non esiste."**
+- È vero, nel test set il massimo per le utenze non critiche è 0.886. Per questo una raccomandazione su cinque di "+5" è uno **scenario simulato di deterioramento** (`scenari.py`, `app.py:179`).
+- Si parte da un asset reale e si peggiorano solo vibrazione, temperatura e giorni dall'ultima manutenzione. Si usano valori osservati nel dataset e il peggioramento minimo che porta il modello reale a P ≥ 0.90.
+- Il livello non è forzato: lo decide la matrice (R3, o R2). Lo scenario è dichiarato su card, dettaglio, ricostruzione e audit (`scenario_simulato`) e non entra nelle metriche del test set.
 
 **"Dopo uno stop le azioni ripartono da sole?"**
 - No: le decisioni tornano in coda almeno HITL (R6), con log `sblocco_post_stop`.

@@ -205,6 +205,14 @@ Dalla dashboard si può:
 4. **Identità del supervisore.** Il ruolo è riconosciuto dal prefisso `SUP-` e non c'è autenticazione: in produzione servono
    SSO e ruoli verificati.
 5. **Ambiente dimostrativo.** Lo SLA, il drift (test set diviso in "settimane") e il flusso di raccomandazioni sono simulati.
+   Nel test set nessuna utenza non critica supera P(guasto) 0.90 (massimo 0.886). Per mostrare un HIC deciso dal solo rischio,
+   **una raccomandazione su cinque di "+5" è uno scenario simulato di deterioramento**. Si parte da un asset reale con utenza
+   non critica e si peggiorano vibrazione, temperatura e giorni dall'ultima manutenzione (`scenari.py`). Si usano solo valori
+   osservati nel dataset, si sceglie il peggioramento minimo e si alternano le aree. Il peggioramento continua finché il
+   modello reale stima P ≥ 0.90. Confidenza e SHAP sono calcolati dal modello. Il livello **non è forzato**: lo decide la
+   matrice (di norma R3, o R2 se l'azione è `riduci_carico` su utenza alta). Lo scenario è dichiarato sulla card, nel
+   dettaglio, nella ricostruzione e nell'audit (evento `scenario_simulato`). Gli scenari non entrano nelle metriche calcolate
+   sul test set (recall, calibrazione, drift), ma solo nei KPI sulle decisioni (A1–A6, C3).
 6. **La promozione per override (C3)** richiede almeno 5 giudizi umani: all'inizio della giornata non può scattare.
 7. **LLM esterno.** Introduce non determinismo, latenza e dipendenza da un fornitore. È mitigato dai guardrail e dal fallback
    al template, ma il testo generato non è riproducibile al 100%.

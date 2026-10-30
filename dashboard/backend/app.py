@@ -14,7 +14,8 @@ vivono qui e nei moduli oversight_manager / explainer / bias_detector / audit_lo
 
 Limiti dichiarati della demo: identita' dell'operatore auto-dichiarata (prefisso SUP- = supervisore),
 decisioni in memoria (il log su file persiste), catena di hash non firmata, flusso di
-raccomandazioni simulato a partire dal test set.
+raccomandazioni simulato a partire dal test set (una ogni 5 dal pulsante "+5" e' uno scenario
+simulato di deterioramento, dichiarato sulla card e nel log: vedi scenari.py).
 """
 import argparse
 import json
@@ -49,11 +50,13 @@ from oversight_manager import (AZIONI, STATI_IN_CODA, EsecuzioneNonAutorizzata, 
                                LivelloSupervisione, OversightManager, Raccomandazione,
                                RubberStamping, StatoDecisione, azione_raccomandata,
                                calcola_confidenza)
+from scenari import GeneratoreScenari  # noqa: E402
 from utils_io import (PERCORSO_AUDIT, PERCORSO_DASHBOARD, PERCORSO_DATASET,  # noqa: E402
                       PERCORSO_MODELLO, PERCORSO_PREDIZIONI, carica_csv, prepara_feature)
 
 ORDINE_AREE = ["Nord", "Centro", "Sud", "Isole"]
 MARGINE_DRIFT = 0.05
+SCENARIO_OGNI = 5   # nel flusso simulato, una raccomandazione ogni 5 e' uno scenario di deterioramento (scenari.py)
 AVVISO_LABEL = ("Nei dati storici di quest'area i guasti risultano sotto-registrati: "
                 "il rischio reale potrebbe essere più alto di quanto stimato.")
 
@@ -110,6 +113,7 @@ class Sistema:
         self.aree_sospette = list(self.report.get("label_bias", {}).get("aree_sospette", []))
         storico = self.dataset[~self.dataset["asset_id"].isin(set(self.pred["asset_id"]))]
         self.casi = CasiSimili(storico, aree_sospette=self.aree_sospette)
+        self.scenari = GeneratoreScenari(self.modello, self.colonne, self.dataset, self.pred)
 
         self.config_llm = ConfigLLM() if usa_llm else ConfigLLM.nessuno()
         self.cache_llm: dict = {}
@@ -133,6 +137,7 @@ class Sistema:
             self.dettagli: dict = {}
             ordine = self._ordine_flusso()
             self.flusso = list(ordine[self.n_iniziali:])
+            self.ordine_scenari = self.scenari.ordine(self.seed)
             self.audit.log("SISTEMA", "avvio_sessione", extra={
                 "sessione": self.sessione, "raccomandazioni_iniziali": self.n_iniziali,
                 "soglie": self.om.soglie(), "archivio_precedente": archivio})
@@ -169,8 +174,20 @@ class Sistema:
         return round(float(c), 3) if c is not None and c == c else calcola_confidenza(prob)
 
     def _sottometti_riga(self, i: int) -> Raccomandazione:
-        riga = self.pred.iloc[i]
-        x = self.X.iloc[i]
+        return self._sottometti(self.pred.iloc[i], self.X.iloc[i])
+
+    def _sottometti_scenario(self) -> Optional[Raccomandazione]:
+        """Scenario simulato di deterioramento (scenari.py): asset reale non critico ancora nel flusso,
+        letture peggiorate finche' il modello stima P(guasto) >= 0.90. Il livello lo decide il routing."""
+        scelta = self.scenari.scegli(self.ordine_scenari, set(self.flusso), self.om.soglia_rischio)
+        if scelta is None:
+            return None
+        i, opzione = scelta
+        self.flusso.remove(i)
+        riga, x, scenario = self.scenari.costruisci(self.pred.iloc[i], opzione)
+        return self._sottometti(riga, x, scenario)
+
+    def _sottometti(self, riga, x, scenario: Optional[dict] = None) -> Raccomandazione:
         prob = round(float(riga["proba"]), 3)
         carico = float(riga["carico_pct"])
         analisi = analizza_riga(self.modello, x.to_numpy(), self.colonne)
@@ -179,6 +196,9 @@ class Sistema:
                             azione_raccomandata(prob, carico),
                             [(f.nome, round(f.contributo, 4)) for f in analisi.fattori],
                             id=self._nuovo_id(), carico_pct=carico)
+        if scenario:
+            # dichiarato nel log prima del routing: chi ricostruisce la decisione sa che i dati sono simulati
+            self.audit.log("SISTEMA", "scenario_simulato", r, extra=scenario)
         self.om.sottometti(r)
         avviso = None
         if r.area_geografica in self.aree_sospette:
@@ -191,6 +211,7 @@ class Sistema:
             "fattori": analisi.fattori, "metodo": analisi.metodo, "avviso_area": avviso,
             "controfattuale": controfattuale(self.modello, x, analisi.fattori, r.azione_proposta, prob),
             "casi_simili": self.casi.trova(riga.to_dict()),
+            "scenario": scenario,
             "gen": 0, "llm": None, "spiegazione": None,
         }
         self._genera_spiegazione(r)
@@ -315,9 +336,13 @@ class Sistema:
                 raise ValueError("n deve essere tra 1 e 20")
             if not self.flusso:
                 raise ValueError("Flusso esaurito: usare Reset demo")
-            nuove = [self._sottometti_riga(self.flusso.pop(0)) for _ in range(min(n, len(self.flusso)))]
+            # prima lo scenario (il suo asset esce dal flusso), poi le altre dal flusso del test set;
+            # a scenari esauriti la generazione resta di n raccomandazioni normali
+            scenari = [r for r in (self._sottometti_scenario() for _ in range(n // SCENARIO_OGNI)) if r]
+            nuove = scenari + [self._sottometti_riga(self.flusso.pop(0))
+                               for _ in range(min(n - len(scenari), len(self.flusso)))]
             self._modifica()
-            return {"generate": len(nuove), "per_livello": {
+            return {"generate": len(nuove), "scenari": len(scenari), "per_livello": {
                 lv: sum(1 for r in nuove if r.livello and r.livello.value == lv) for lv in ("HIC", "HITL", "HOTL")},
                 "bloccate": sum(1 for r in nuove if r.stato == StatoDecisione.BLOCCATA_STOP)}
 
@@ -365,6 +390,7 @@ class Sistema:
             "controfattuale": det.get("controfattuale"),
             "casi_simili": det.get("casi_simili"),
             "avviso_area": det.get("avviso_area"),
+            "scenario": det.get("scenario"),
             "metodo_fattori": det.get("metodo"),
             "descrizione_confidenza": descrivi_confidenza(r.confidenza),
         })

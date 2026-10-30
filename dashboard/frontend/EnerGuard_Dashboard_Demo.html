@@ -120,6 +120,7 @@ tr.alert td{background:#2A1A10}
 .pill.bad{background:var(--hic-d);color:#FFB3A8;border:1px solid var(--hic)}
 .pill.warn{background:var(--hitl-d);color:var(--hitl);border:1px solid var(--hitl)}
 .pill.ok{background:#14332F;color:var(--hotl);border:1px solid var(--hotl)}
+.pill.sim{background:#1D2A3B;color:#A9C7E8;border:1px dashed #6F93BA}
 /* gruppi KPI (tinte tenui, basso contrasto) */
 tr.kgh td{font-weight:800;font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;padding:9px 8px;border-left:4px solid}
 tr.kgh.kga td{background:#16303C;border-left-color:#5E8CA8;color:#9CC4DE}
@@ -255,7 +256,7 @@ dialog#dlgDec h3{font-size:.78rem;letter-spacing:.06em;text-transform:uppercase;
             <button class="btn" id="btnEsc" aria-pressed="false" title="Nasconde dalla vista le decisioni in escalation: restano in coda per il supervisore">Nascondi escalation</button>
             <label for="fArea">Area</label>
             <select id="fArea"><option value="">Tutte</option></select>
-            <button class="btn" id="btnNuove" title="Simula l'arrivo di nuove raccomandazioni dal modello">+ 5 nuove raccomandazioni</button>
+            <button class="btn" id="btnNuove" title="Simula l'arrivo di nuove raccomandazioni dal modello. Una su cinque è uno scenario simulato di deterioramento: asset reale con utenza non critica e letture peggiorate finché il modello stima P(guasto) ≥ 90% (dichiarato sulla card e nel log)">+ 5 nuove raccomandazioni</button>
           </div>
           <div id="coda"></div>
           <div id="bloccate"></div>
@@ -513,9 +514,10 @@ function cardHTML(d){
   const mot=drafts[d.id]||"", ok=mot.trim().length>=MINREV();
   const aperta=espanse.has(d.id)||!!errori[d.id];
   return `<article class="card ${lv} ${aperta?"open":""}" data-card="${d.id}" aria-labelledby="h-${d.id}">
-    <div class="chead" data-toggle="${d.id}" role="button" tabindex="0" aria-expanded="${aperta}" title="Clicca per espandere/comprimere"><span class="chev" aria-hidden="true">▸</span><div><span class="cid" id="h-${d.id}">${esc(d.asset_id)}</span> <span class="tag ${lv}">${d.livello==="HIC"?"HIC · veto umano":"HITL · serve approvazione"}</span> <span class="mono rg">${esc(d.regola)}</span>
+    <div class="chead" data-toggle="${d.id}" role="button" tabindex="0" aria-expanded="${aperta}" title="Clicca per espandere/comprimere"><span class="chev" aria-hidden="true">▸</span><div><span class="cid" id="h-${d.id}">${esc(d.asset_id)}</span> <span class="tag ${lv}">${d.livello==="HIC"?"HIC · veto umano":"HITL · serve approvazione"}</span>     <span class="mono rg">${esc(d.regola)}</span>${d.scenario?` <span class="pill sim" title="${esc(scenarioTesto(d.scenario))}">scenario simulato</span>`:""}
       <div class="meta">${esc(TIPO(d.tipo_asset))} · ${esc(d.area_geografica)} · Utenza <b>${esc(d.criticita_utenza)}</b> · ${slaTesto(d)}</div></div></div>
           <div class="cbody">
+              ${d.scenario?`<p class="note">${esc(scenarioTesto(d.scenario))}</p>`:""}
           <div class="nums"><div>P(guasto 30gg) <b style="color:${d.prob_guasto>=ST.soglie.soglia_rischio?"var(--hic)":"var(--txt)"}">${pct(d.prob_guasto)}</b></div>
       <div>Confidenza <b>${n2(d.confidenza)} · ${esc(d.descrizione_confidenza)}</b></div>
       <div title="Curva f(P) = soglia di confidenza + 0.10 × P(guasto). Criticità = (1 − confidenza) + 0.10 × P(guasto): oltre la soglia la decisione è sotto la curva e non può essere automatica">Zona <b style="color:${d.zona==="gialla"?"var(--hitl)":d.zona==="rossa"||d.zona==="verde_rischio"?"var(--hic)":"var(--txt)"}">${esc(ZONA(d.zona))}</b>${d.confidenza_minima!=null?` · curva ${n2(d.confidenza_minima)}`:""} · criticità ${n2(d.indice_criticita)}${d.soglia_criticita!=null?` / ${n2(d.soglia_criticita)}`:""}</div>
@@ -578,6 +580,7 @@ function renderStops(){
 
 /* ===================== MATRICE ===================== */
 const ZONA=z=>({verde:"verde",verde_rischio:"verde sopra la soglia di rischio (→ HIC)",rossa:"rossa",gialla:"gialla"})[z]||"–";
+const scenarioTesto=s=>s?`Scenario simulato di deterioramento: ${(s.letture||[]).map(l=>`${l.etichetta} ${l.prima} → ${l.dopo}${l.unita?" "+l.unita:""}`).join(", ")}. P(guasto) del dato reale ${pct(s.proba_reale)}, nello scenario ${pct(s.proba_scenario)}. Il livello lo decide la matrice di routing.`:"";
 function renderMatrix(){
   const W=760,H=380,L=60,T=20,R=20,B=48,PAD=8, so=ST.soglie, thC=so.soglia_confidenza_effettiva, thR=so.soglia_rischio,
     kC=so.pendenza_criticita||0.1;
@@ -596,7 +599,7 @@ function renderMatrix(){
   const assi=tacche(x0,1).map(v=>`<line x1="${x(v).toFixed(1)}" y1="${H-B}" x2="${x(v).toFixed(1)}" y2="${H-B+5}" stroke="var(--mut)"/><text x="${x(v).toFixed(1)}" y="${H-B+18}" fill="var(--mut)" font-size="11" text-anchor="middle">${v.toFixed(1)}</text>`).join("")
     +tacche(0,1).map(v=>`<line x1="${L-5}" y1="${y(v).toFixed(1)}" x2="${L}" y2="${y(v).toFixed(1)}" stroke="var(--mut)"/><text x="${L-8}" y="${(y(v)+4).toFixed(1)}" fill="var(--mut)" font-size="11" text-anchor="end">${v.toFixed(1)}</text>`).join("");
   const pts=dec.map(d=>{const q=d.stato==="IN_ATTESA"||d.stato==="ESCALATION";
-    return `<circle data-dec="${esc(d.id)}" cx="${x(d.confidenza).toFixed(1)}" cy="${y(d.prob_guasto).toFixed(1)}" r="${q?6:4}" fill="var(--${d.livello.toLowerCase()})" stroke="${q?"#fff":"none"}" stroke-width="1.2" opacity="${d.stato==="BLOCCATA_STOP"?.35:1}" tabindex="0" role="button" aria-haspopup="dialog" aria-label="${esc(d.asset_id)}, ${d.livello}, rischio ${n2(d.prob_guasto)}, confidenza ${n2(d.confidenza)}, zona ${esc(ZONA(d.zona))}, ${d.regola}, ${d.stato}. Apri i dettagli"><title>${esc(d.asset_id)} · ${d.livello} (${d.regola}) · rischio ${n2(d.prob_guasto)} · conf ${n2(d.confidenza)} (curva ${n2(d.confidenza_minima)}) · zona ${esc(ZONA(d.zona))} · ${d.stato} · clic per i dettagli</title></circle>`}).join("");
+    return `<circle data-dec="${esc(d.id)}" cx="${x(d.confidenza).toFixed(1)}" cy="${y(d.prob_guasto).toFixed(1)}" r="${q?6:4}" fill="var(--${d.livello.toLowerCase()})" stroke="${q?"#fff":"none"}" stroke-width="1.2" opacity="${d.stato==="BLOCCATA_STOP"?.35:1}" tabindex="0" role="button" aria-haspopup="dialog" aria-label="${esc(d.asset_id)}, ${d.livello}, rischio ${n2(d.prob_guasto)}, confidenza ${n2(d.confidenza)}, zona ${esc(ZONA(d.zona))}, ${d.regola}, ${d.stato}${d.scenario?", scenario simulato":""}. Apri i dettagli"><title>${esc(d.asset_id)} · ${d.livello} (${d.regola}) · rischio ${n2(d.prob_guasto)} · conf ${n2(d.confidenza)} (curva ${n2(d.confidenza_minima)}) · zona ${esc(ZONA(d.zona))} · ${d.stato}${d.scenario?" · scenario simulato":""} · clic per i dettagli</title></circle>`}).join("");
   $("#matrix").innerHTML=`<svg viewBox="0 0 ${W} ${H}" width="100%" role="group" aria-label="Matrice confidenza-rischio con zone di routing: ogni punto è una decisione, apribile per i dettagli">
     <defs><clipPath id="mxClip"><rect x="${L}" y="${T}" width="${W-L-R}" height="${H-B-T}"/></clipPath>
       <pattern id="mxHatch" width="9" height="9" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="9" height="9" fill="var(--hotl-d)"/><rect width="4" height="9" fill="var(--hic-d)"/></pattern></defs>
@@ -647,7 +650,8 @@ function riempiDettaglio(){
     ["Esecuzione",d.eseguita?"eseguita "+esc(dt(d.eseguita_il)):"<b>non eseguita</b>"],["Creata",esc(dt(d.creata_il))],
     ...(d.scadenza_sla||d.stato==="ESCALATION"?[["SLA",slaTesto(d)]]:[]),
     ...(d.revisore?[["Revisore",esc(d.revisore)+(d.chiusa_il?" · "+esc(dt(d.chiusa_il)):"")]]:[]),
-    ...(d.bloccata_da?[["Bloccata da",`<span class="pill bad">STOP ${esc(d.bloccata_da)}</span>`]]:[])];
+    ...(d.bloccata_da?[["Bloccata da",`<span class="pill bad">STOP ${esc(d.bloccata_da)}</span>`]]:[]),
+    ...(d.scenario?[["Origine dati",`<span class="pill sim">scenario simulato</span> ${esc(scenarioTesto(d.scenario))}`]]:[])];
   $("#dlgDec").style.borderColor=`var(--${lv})`;
   $("#decTitle").innerHTML=`<span class="mono">${esc(d.asset_id)}</span> <span class="tag ${lv}">${esc(d.livello)}</span> <span class="mono rg">${esc(d.regola||"")}</span>`;
   $("#decBody").innerHTML=`<h3>Perché è ${esc(d.livello)}</h3>${routingHTML(d)}
@@ -853,7 +857,7 @@ document.querySelectorAll('input[name="rLiv"]').forEach(c=>c.addEventListener("c
 $("#btnEscR").addEventListener("click",e=>{e.currentTarget.setAttribute("aria-pressed",!escNascoste("#btnEscR"));renderRecenti()});
 $("#fArea").addEventListener("change",renderCoda);
 $("#btnEsc").addEventListener("click",e=>{e.currentTarget.setAttribute("aria-pressed",!escNascoste());renderCoda()});
-$("#btnNuove").addEventListener("click",()=>azione(()=>api("/api/raccomandazioni",{body:{n:5}}),r=>`${r.generate} nuove raccomandazioni: HIC ${r.per_livello.HIC}, HITL ${r.per_livello.HITL}, HOTL ${r.per_livello.HOTL}${r.bloccate?", "+r.bloccate+" bloccate da stop":""}.`).catch(()=>{}));
+$("#btnNuove").addEventListener("click",()=>azione(()=>api("/api/raccomandazioni",{body:{n:5}}),r=>`${r.generate} nuove raccomandazioni${r.scenari?` (di cui ${r.scenari} scenario simulato)`:""}: HIC ${r.per_livello.HIC}, HITL ${r.per_livello.HITL}, HOTL ${r.per_livello.HOTL}${r.bloccate?", "+r.bloccate+" bloccate da stop":""}.`).catch(()=>{}));
 
 /* ===================== EVENTI: STOP ===================== */
 let ambitoPendente=null;
@@ -892,7 +896,7 @@ $("#btnTamper").addEventListener("click",async()=>{try{const r=await api("/api/a
 $("#btnRicostruisci").addEventListener("click",async()=>{const a=$("#fAsset").value.trim();if(!a)return;
   try{const r=await api("/api/audit/ricostruisci/"+encodeURIComponent(a));
     $("#ricostruzione").innerHTML=`<div class="bignote">Ricostruzione di <b>${esc(r.asset_id)}</b> in ${r.ms} ms · ${r.n_record} record · catena ${r.integrita&&r.integrita.integra?"integra":"NON integra"}
-      ${r.decisioni.map(d=>`<div style="margin-top:8px"><b>${esc(d.decisione_id||"")}</b> · ${esc(d.esito||d.stato_finale||"")} · <b>chi:</b> ${esc(d.chi||"–")} · <b>quando:</b> ${esc(d.quando||"–")} · <b>perché:</b> «${esc(d.perche||"–")}» · AI: ${esc(AZ(d.azione_ai))} → finale: ${esc(AZ(d.azione_finale))}</div>`).join("")||"<div>Nessuna decisione per questo asset nella sessione corrente.</div>"}</div>`;
+      ${r.decisioni.map(d=>`<div style="margin-top:8px"><b>${esc(d.decisione_id||"")}</b>${d.scenario_simulato?` <span class="pill sim" title="${esc(scenarioTesto(d.scenario_simulato))}">scenario simulato</span>`:""} · ${esc(d.esito||d.stato_finale||"")} · <b>chi:</b> ${esc(d.chi||"–")} · <b>quando:</b> ${esc(d.quando||"–")} · <b>perché:</b> «${esc(d.perche||"–")}» · AI: ${esc(AZ(d.azione_ai))} → finale: ${esc(AZ(d.azione_finale))}</div>`).join("")||"<div>Nessuna decisione per questo asset nella sessione corrente.</div>"}</div>`;
   }catch(e){toast(e.message,true)}});
 ["thConf","thRisk"].forEach(id=>$("#"+id).addEventListener("input",e=>$("#o"+id.slice(2)).textContent=(+e.target.value).toFixed(2)));
 $("#btnSoglie").addEventListener("click",()=>azione(()=>api("/api/soglie",{body:{operatore:op(),motivazione:$("#sogMot").value.trim(),soglia_confidenza:+$("#thConf").value,soglia_rischio:+$("#thRisk").value,sla_minuti:+$("#thSla").value}}),"Soglie aggiornate e registrate nell'audit trail.").then(()=>$("#sogMot").value="").catch(()=>{}));
